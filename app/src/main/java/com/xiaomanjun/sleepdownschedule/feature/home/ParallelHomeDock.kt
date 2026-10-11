@@ -49,6 +49,11 @@ internal val HomeImportButtonColor = Color(0xFF007AFF)
 internal fun homeImportButtonGlassColor(light: Boolean): Color =
     HomeImportButtonColor.copy(alpha = homeChromeGlassSurfaceAlpha(light))
 
+@Composable
+internal fun homeDockImportButtonGlassColor(light: Boolean): Color =
+    (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsDockAccent.current
+        ?.let { Color(it) } ?: HomeImportButtonColor).copy(alpha = homeChromeGlassSurfaceAlpha(light))
+
 /** The return endpoint is the resting button, without the captured press deformation. */
 @Composable
 internal fun HomeImportButtonReturnVisual(
@@ -59,7 +64,7 @@ internal fun HomeImportButtonReturnVisual(
         backdrop = backdrop,
         contentDescription = "添加与导入",
         onClick = {},
-        surfaceColor = homeImportButtonGlassColor(LocalAdaptiveGlass.current.lightGlass),
+        surfaceColor = homeDockImportButtonGlassColor(LocalAdaptiveGlass.current.lightGlass),
         blurRadius = homeChromeBlur(1.3.dp, config),
         enabled = false,
         modifier = modifier
@@ -87,7 +92,7 @@ internal fun ParallelHomeDock(
         if (homeSelected) adaptiveGlass.contentColor else if (light) Color.Black else Color.White,
         tween(220), label = "ParallelDockInk")
     val plusSurface by animateColorAsState(
-        homeImportButtonGlassColor(light), tween(220), label = "ParallelImportSurface")
+        homeDockImportButtonGlassColor(light), tween(220), label = "ParallelImportSurface")
     val split = remember { Animatable(if (homeSelected) 1f else 0f) }
     val splitReady by remember { derivedStateOf { !split.isRunning && split.value >= 0.999f } }
     LaunchedEffect(homeSelected) {

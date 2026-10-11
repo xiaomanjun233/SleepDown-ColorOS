@@ -21,7 +21,6 @@ internal object ColorOsNativeUi {
     const val FloatingNavigation =
         "com.coui.appcompat.bottomfloatingnavigationbar.COUIBottomFloatingNavigationBar"
     const val FloatingButton = "com.coui.appcompat.floatingactionbutton.COUIFloatingButton"
-    val HomeAccent = 0xFF007AFF.toInt()
     private const val Tag = "SleepDownCOUI"
     private val sources = listOf("com.android.settings", "com.android.contacts", "com.coloros.filemanager")
     private var searched = false
@@ -82,14 +81,18 @@ internal object ColorOsNativeUi {
                 else ColorStateList.valueOf(value.data)
         }
 
-        fun tintSpotLight(owner: Any, declaringClass: String, fieldName: String) {
+        fun tintSpotLight(owner: Any, declaringClass: String, fieldName: String, accent: Int) {
             // COUI exposes the light's color setter, but no getter on these two hosts.
             // Read the existing drawable; do not replace its touch handling or animation.
             val field = load(declaringClass).getDeclaredField(fieldName).apply { isAccessible = true }
             val light = field.get(owner) ?: return
             light.javaClass.getMethod("setLightColor", Float::class.javaPrimitiveType,
                 Float::class.javaPrimitiveType, Float::class.javaPrimitiveType).invoke(light,
-                Color.red(HomeAccent) / 255f, Color.green(HomeAccent) / 255f, Color.blue(HomeAccent) / 255f)
+                // A saturated accent absorbs most of the native white light. Keep its hue,
+                // but lift the light towards white without changing the system's touch springs.
+                0.55f + 0.45f * Color.red(accent) / 255f,
+                0.55f + 0.45f * Color.green(accent) / 255f,
+                0.55f + 0.45f * Color.blue(accent) / 255f)
         }
 
         fun themedContext(host: Context, dark: Boolean): Context {

@@ -925,6 +925,10 @@ fun SchoolSearchField(
     modifier: Modifier = Modifier
 ) {
     val isLargeScreen = rememberHomeAdaptiveMetrics().isLargeScreen
+    if (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsSchoolSearchField(
+            value, onValueChange, appUsesDarkTheme(config), bottomOffset,
+            entranceProgress, isLargeScreen, modifier
+        )) return
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val foreground = sleepDownPanelForegroundColor(config)

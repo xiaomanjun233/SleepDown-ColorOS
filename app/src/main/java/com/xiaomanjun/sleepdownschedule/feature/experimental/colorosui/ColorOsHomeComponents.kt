@@ -15,9 +15,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.xiaomanjun.sleepdownschedule.R
@@ -36,17 +39,24 @@ internal class NativeDock(
     val listener: Any,
     private val icons: List<Drawable>,
     private val source: ColorOsNativeUi.Source,
-    private val context: Context
+    private val context: Context,
+    private var accent: Int
 ) {
     fun refreshAppearance() {
         // refresh() leaves the expansion view, metaball chain and active springs bound.
         view.javaClass.getMethod("refresh").invoke(view)
-        val colors = dockIconColors(source, context)
+        updateAccent(accent, force = true)
+        Log.i("SleepDownCOUI", "Dock appearance refreshed in place: view=${System.identityHashCode(view)}, " +
+            "night=${context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK}")
+    }
+
+    fun updateAccent(color: Int, force: Boolean = false) {
+        if (!force && color == accent) return
+        accent = color
+        val colors = dockIconColors(source, context, color)
         icons.forEach { it.setTintList(colors) }
         view.javaClass.getMethod("setItemsTitleTextColor", ColorStateList::class.java).invoke(view, colors)
         tintLight()
-        Log.i("SleepDownCOUI", "Dock appearance refreshed in place: view=${System.identityHashCode(view)}, " +
-            "night=${context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK}")
     }
 
     fun tintLight() {
@@ -54,7 +64,7 @@ internal class NativeDock(
         val menuType = source.load(base)
         for (index in 0 until view.childCount) {
             val child = view.getChildAt(index)
-            if (menuType.isInstance(child)) source.tintSpotLight(child, base, "mSpotLightEffectDrawable")
+            if (menuType.isInstance(child)) source.tintSpotLight(child, base, "mSpotLightEffectDrawable", accent)
         }
     }
 
@@ -70,16 +80,22 @@ internal class NativeDock(
         }
     }
 
+    fun expansionMoving(): Boolean = listOf("mExpansionViewAlphaAnim", "mExpansionViewScaleAnim",
+        "mExpansionViewTranslationXAnim").any { name ->
+        val animation = view.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(view)
+        animation != null && animation.javaClass.getMethod("isRunning").invoke(animation) == true
+    }
+
     fun dispose() { setListener.invoke(view, null) }
 }
 
-private fun dockIconColors(source: ColorOsNativeUi.Source, context: Context): ColorStateList {
+private fun dockIconColors(source: ColorOsNativeUi.Source, context: Context, accent: Int): ColorStateList {
     val variant = source.color(context, "couiColorLabelPrimaryVariant").defaultColor
     val disabled = source.color(context, "couiColorLabelTertiary").defaultColor
     return ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),
         intArrayOf(android.R.attr.state_checked), intArrayOf(android.R.attr.state_selected),
         intArrayOf(android.R.attr.state_pressed), intArrayOf()),
-        intArrayOf(disabled, ColorOsNativeUi.HomeAccent, ColorOsNativeUi.HomeAccent, variant, variant))
+        intArrayOf(disabled, accent, accent, variant, variant))
 }
 
 internal fun createNativeHomeDock(
@@ -88,13 +104,14 @@ internal fun createNativeHomeDock(
     host: Context,
     tabs: List<Pair<Int, String>>,
     selectedIndex: Int,
+    accent: Int,
     onSelect: (Int) -> Unit
 ): NativeDock {
     val type = source.load(ColorOsNativeUi.FloatingNavigation)
     val bar = type.getConstructor(Context::class.java).newInstance(context) as ViewGroup
     val builderType = source.load("$NavigationItem\$Builder")
     // COUI tints its labels, but accepts custom icons without applying a tint to them.
-    val iconColors = dockIconColors(source, context)
+    val iconColors = dockIconColors(source, context, accent)
     val icons = mutableListOf<Drawable>()
     val items = tabs.mapIndexed { index, (icon, title) ->
         val builder = builderType.getConstructor().newInstance()
@@ -134,7 +151,7 @@ internal fun createNativeHomeDock(
     bar.clipToPadding = false
     return NativeDock(bar, type.getMethod("getSelectedItemId"),
         type.getMethod("setSelectedItemId", Int::class.javaPrimitiveType), setListener, listener,
-        icons, source, context).also { dock ->
+        icons, source, context, accent).also { dock ->
         bar.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) { view.post { dock.tintLight() } }
             override fun onViewDetachedFromWindow(view: View) = Unit
@@ -154,6 +171,20 @@ internal fun rememberNativeContext(dark: Boolean): Pair<ColorOsNativeUi.Source, 
     }
 }
 
+@Composable
+internal fun colorOsOrdinaryDockWidth(): androidx.compose.ui.unit.Dp {
+    val native = rememberNativeContext(dark = false) ?: return 140.dp
+    val source = native.first
+    val resources = native.second.resources
+    fun dimension(name: String) = resources.getDimensionPixelSize(source.resource(name, "dimen"))
+    // Two full-size native cells, their gap, the menu inset and the bar's outer safe inset.
+    val pixels = 2 * dimension("coui_bottom_floating_navigation_bar_item_max_width") +
+        dimension("coui_bottom_floating_navigation_bar_item_space") +
+        2 * dimension("coui_bottom_floating_navigation_bar_item_bg_horizontal_padding") +
+        2 * dimension("coui_bottom_floating_navigation_bar_padding_horizontal")
+    return with(LocalDensity.current) { pixels.toDp() }
+}
+
 /** Returns false only when native preparation failed, so the caller can use its existing UI. */
 @Composable
 internal fun ColorOsHomeDock(
@@ -168,14 +199,19 @@ internal fun ColorOsHomeDock(
     val callback = rememberUpdatedState(onSelect)
     val source = native.first
     val context = native.second
+    val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
+    val height = with(LocalDensity.current) {
+        context.resources.getDimensionPixelSize(source.resource("coui_bottom_floating_navigation_bar_height", "dimen")).toDp()
+    }
     val dock = remember(source, context, tabs) {
         ColorOsNativeUi.prepare("create the floating navigation bar") {
-            createNativeHomeDock(source, context, host, tabs, selectedIndex) { callback.value(it) }
+            createNativeHomeDock(source, context, host, tabs, selectedIndex, accent) { callback.value(it) }
         }
     } ?: return false
     key(context, tabs) {
-        AndroidView(factory = { dock.view }, modifier = modifier, update = {
+        AndroidView(factory = { dock.view }, modifier = modifier.height(height), update = {
             if (source.updateTheme(context, dark)) dock.refreshAppearance()
+            dock.updateAccent(accent)
             dock.select(selectedIndex.coerceIn(tabs.indices))
         })
     }
@@ -193,44 +229,68 @@ internal fun ColorOsHomeIconButton(
     interactive: Boolean,
     selected: Boolean,
     modifier: Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    toolbarNavigation: Boolean = false
 ): Boolean {
     val native = rememberNativeContext(dark) ?: return false
     val host = LocalContext.current
     val source = native.first
     val context = native.second
     val callback = rememberUpdatedState(onClick)
-    val button = remember(source, context, iconRes) {
+    val button = remember(source, context, iconRes, toolbarNavigation) {
         ColorOsNativeUi.prepare("create the home icon button") {
-            // Gallery's toolbar icon items use this delegate, rather than the tiny text-button style.
             val type = source.load(ColorOsNativeUi.ToolbarMaterial)
             val drawSpotLight = type.getMethod("drawSpotLight", Canvas::class.java)
             var effect: Any? = null
-            val view = object : ImageButton(context) {
-                override fun draw(canvas: Canvas) {
-                    super.draw(canvas)
-                    effect?.let { drawSpotLight.invoke(it, canvas) }
-                }
-            }
-            view.minimumWidth = 0
-            view.minimumHeight = 0
-            view.setPadding(0, 0, 0, 0)
-            view.scaleType = ImageView.ScaleType.CENTER
             val icon = requireNotNull(ContextCompat.getDrawable(host, iconRes)).mutate()
             icon.setTintList(source.color(context, "couiColorLabelPrimary"))
             val iconSize = (20 * context.resources.displayMetrics.density).toInt()
-            view.setImageDrawable(object : DrawableWrapper(icon) {
+            val sizedIcon = object : DrawableWrapper(icon) {
                 override fun getIntrinsicWidth(): Int = iconSize
                 override fun getIntrinsicHeight(): Int = iconSize
-            })
-            effect = type.getMethod("forMenuItem", View::class.java).invoke(null, view)
+            }
+            val view: View = if (toolbarNavigation) {
+                object : ImageButton(context) {
+                    override fun draw(canvas: Canvas) {
+                        super.draw(canvas)
+                        effect?.let { drawSpotLight.invoke(it, canvas) }
+                    }
+                }.apply {
+                    minimumWidth = 0
+                    minimumHeight = 0
+                    setPadding(0, 0, 0, 0)
+                    scaleType = ImageView.ScaleType.CENTER
+                    setImageDrawable(sizedIcon)
+                }.also { effect = type.getMethod("forToolbarButton", View::class.java).invoke(null, it) }
+            } else {
+                // Use Gallery's complete native icon item. It owns measurement, material
+                // attachment, configuration refresh and spotlight drawing, not only a delegate.
+                val itemViewType = source.load("com.coui.appcompat.toolbar.COUIActionMenuItemView")
+                val itemView = itemViewType.getConstructor(Context::class.java).newInstance(context) as android.widget.TextView
+                itemView.layoutParams = ViewGroup.MarginLayoutParams(iconSize * 2, iconSize * 2)
+                val menuType = source.load("androidx.appcompat.view.menu.MenuBuilder")
+                val menu = menuType.getConstructor(Context::class.java).newInstance(context)
+                val item = menuType.getMethod("add", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType, CharSequence::class.java).invoke(menu, 0, 1, 0, contentDescription) as android.view.MenuItem
+                item.setIcon(sizedIcon)
+                item.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                itemViewType.getMethod("initialize", source.load("androidx.appcompat.view.menu.MenuItemImpl"),
+                    Int::class.javaPrimitiveType).invoke(itemView, item, 0)
+                itemView.text = null
+                // The deprecated setIfInBlurWindow(false) actually enables drawable-only mode
+                // and forces material off. Use the explicit API for independent View material.
+                itemViewType.getMethod("setItemIsDrawableMaterialEffect", Boolean::class.javaPrimitiveType)
+                    .invoke(itemView, false)
+                effect = itemViewType.getMethod("getEffectDelegate").invoke(itemView)
+                itemView
+            }
             val state = source.load("com.coui.appcompat.toolbar.COUIToolbar\$MaterialEffectState")
             val follow = state.getMethod("getValue").invoke(state.getField("FOLLOW_SYSTEM").get(null))
             type.getMethod("setUseMaterialEffectAttr", Int::class.javaPrimitiveType).invoke(effect, follow)
             val materialType = source.load("com.coui.appcompat.toolbar.COUIMaterialEffectType")
                 .getField("TYPE_DEFAULT").getInt(null)
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(effect, materialType)
-            NativeIconButton(view, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
+            NativeIconButton(view, sizedIcon, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
                 view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                     override fun onViewAttachedToWindow(view: View) { view.post { button.refreshAppearance() } }
                     override fun onViewDetachedFromWindow(view: View) = Unit
@@ -238,34 +298,48 @@ internal fun ColorOsHomeIconButton(
             }
         }
     } ?: return false
+    val overflowEntries = LocalColorOsOverflowMenu.current
+        ?.takeIf { iconRes == R.drawable.ic_more_horizontal }
+    val menuEntries = rememberUpdatedState(overflowEntries?.value.orEmpty())
+    val menu = remember(button, overflowEntries != null) {
+        if (overflowEntries == null) null else ColorOsNativeUi.prepare("create the native overflow menu") {
+            NativeOverflowMenu(source, context, host)
+        }
+    }
     key(context, iconRes) {
         AndroidView(factory = { button.view }, modifier = modifier, update = { view ->
             if (source.updateTheme(context, dark)) button.refreshAppearance()
             view.contentDescription = contentDescription
             view.isSelected = selected
             // Resting return-anchor copies retain the normal material, without accepting input.
-            view.setOnClickListener(if (interactive) View.OnClickListener { callback.value() } else null)
+            view.setOnClickListener(if (interactive) View.OnClickListener {
+                if (menu != null) menu.show(view, menuEntries.value) else callback.value()
+            } else null)
             view.isClickable = interactive
             view.isFocusable = interactive
         })
     }
     DisposableEffect(button) { onDispose { button.dispose() } }
+    DisposableEffect(menu) { onDispose { menu?.dispose() } }
     return true
 }
 
-private class NativeIconButton(val view: ImageButton, val effect: Any, val detach: Method,
+private class NativeIconButton(val view: View, val icon: Drawable, val effect: Any, val detach: Method,
     private val source: ColorOsNativeUi.Source) {
     fun refreshAppearance() {
         effect.javaClass.getMethod("refreshRipple", Context::class.java).invoke(effect, view.context)
-        view.drawable.setTintList(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),
-            intArrayOf(ColorOsNativeUi.HomeAccent, source.color(view.context, "couiColorLabelPrimary").defaultColor)))
-        source.tintSpotLight(effect, ColorOsNativeUi.ToolbarMaterial, "mSpotLight")
-        val materialState = listOf("mMaterialType", "mBlurAllowed", "mBlurOn", "mStrokeAllowed", "mStrokeOn")
+        icon.setTintList(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),
+            intArrayOf(source.color(view.context, "couiColorPrimary").defaultColor,
+                source.color(view.context, "couiColorLabelPrimary").defaultColor)))
+        val materialState = listOf("mMaterialType", "mIsDrawableMaterialEffect", "mBlurAllowed", "mBlurOn", "mStrokeAllowed", "mStrokeOn")
             .joinToString { name ->
                 val field = effect.javaClass.getDeclaredField(name).apply { isAccessible = true }
                 "$name=${field.get(effect)}"
             }
-        Log.i("SleepDownCOUI", "Toolbar material refreshed: size=${view.width}x${view.height}, " +
+        val renderEffectAvailable = source.load("com.coui.appcompat.COUIMaterialEffect")
+            .getMethod("canApplyBackgroundRenderEffect").invoke(null)
+        Log.i("SleepDownCOUI", "Toolbar material refreshed: type=${view.javaClass.simpleName}, " +
+            "size=${view.width}x${view.height}, backgroundRenderEffect=$renderEffectAvailable, " +
             "background=${view.background?.javaClass?.simpleName}, $materialState")
     }
 

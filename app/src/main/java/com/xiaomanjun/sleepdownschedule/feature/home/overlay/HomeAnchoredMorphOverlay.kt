@@ -1456,7 +1456,7 @@ internal fun HomeAnchoredMorphOverlayHost(
             derivedStateOf { motionState.phase == HomeAnchoredOverlayPhase.Closing && motionState.progress.value >= 0.999f }
         }
         val sourceLightGlass = com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass.current.lightGlass
-        val sourceTint = if (shown.fromDock) com.xiaomanjun.sleepdownschedule.feature.home.homeImportButtonGlassColor(sourceLightGlass)
+        val sourceTint = if (shown.fromDock) com.xiaomanjun.sleepdownschedule.feature.home.homeDockImportButtonGlassColor(sourceLightGlass)
             else (if (sourceLightGlass) HomeLightGlassSurfaceColor else Color(0xFF121212))
                 .copy(alpha = homeChromeGlassSurfaceAlpha(sourceLightGlass))
         if (movingDroplet) {

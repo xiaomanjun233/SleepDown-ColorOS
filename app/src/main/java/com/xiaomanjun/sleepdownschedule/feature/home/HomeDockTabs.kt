@@ -37,7 +37,7 @@ internal fun HomeDockTabs(
         R.drawable.ic_day_view to "今日", R.drawable.ic_week_view to "课程表", R.drawable.ic_settings to "设置"
     ) else listOf(R.drawable.ic_week_view to "课程", R.drawable.ic_settings to "设置")
     if (ColorOsHomeDock(tabs, selectedIndex, dark = !lightGlass,
-            modifier = modifier.height(54.dp), onSelect = onSelect)) return
+            modifier = modifier, onSelect = onSelect)) return
     if (backdrop == null) {
         GlassPill(backdrop = null, config = config, modifier = modifier) {
             Row(Modifier.height(54.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {

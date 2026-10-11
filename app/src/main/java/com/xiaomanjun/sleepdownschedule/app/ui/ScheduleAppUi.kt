@@ -1388,6 +1388,9 @@ fun CourseScheduleAppUi(
         }
     }
     val wallpaperImages by rememberHomeWallpaperImages(visualState.config)
+    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
+        .rememberColorOsDockAccent(wallpaperImages)
+    val colorOsOverflowActions = remember { mutableStateOf<List<AddMenuAction>>(emptyList()) }
     val homeWallpaperRecordKey = remember { mutableStateOf<Any?>(null) }
     val updateHomeWallpaperRecordKey: (Any?) -> Unit = remember {
         { homeWallpaperRecordKey.value = it }
@@ -2407,6 +2410,9 @@ fun CourseScheduleAppUi(
         LocalStartupPhase provides startupPhase,
         LocalGlassQuality provides glassQuality,
         LocalAdaptiveGlass provides adaptiveGlassState,
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsDockAccent provides colorOsDockAccent,
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsOverflowMenu provides
+            colorOsOverflowActions.takeIf { parallelPhoneNavigation },
         LocalHomeReadability provides homeReadabilityContext,
         LocalCourseCardPalette provides homeCoursePalette,
         LocalCourseCardColorAssignments provides homeCourseColorAssignments,
@@ -3511,6 +3517,18 @@ fun CourseScheduleAppUi(
             }
         )
     }
+
+    val latestNativeCourseManagement = rememberUpdatedState<() -> Unit> {
+        // The native popup is a separate window. Use the registered Activity route after its
+        // dismiss animation, rather than capturing the previous Compose liquid menu shell.
+        context.openRegisteredActivity(TransitionRouteId.HomeToCourseManagement,
+            Intent(context, CourseManagementActivity::class.java).putCourseManagementInitialState(state))
+    }
+    val nativeOverflowActions = remember(homeAddActions) {
+        listOf(AddMenuAction(R.drawable.ic_courses, "课程管理") { latestNativeCourseManagement.value() }) +
+            homeAddActions.takeLast(2)
+    }
+    androidx.compose.runtime.SideEffect { colorOsOverflowActions.value = nativeOverflowActions }
 
     fun runSidebarAction(action: () -> Unit) {
         if (pickerState.phase is CustomizeUiState.Picker) {
@@ -5235,6 +5253,11 @@ internal fun CourseBoundsSource(
 
 @Composable
 fun TopBackButton(backdrop: Backdrop?, config: ScheduleConfigEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (ColorOsHomeIconButton(
+            iconRes = R.drawable.ic_arrow_back, contentDescription = "返回",
+            dark = appUsesDarkTheme(config), interactive = true, selected = false,
+            modifier = modifier.size(42.dp), onClick = onClick, toolbarNavigation = true
+        )) return
     TopGlassIconButton(
         backdrop = backdrop,
         config = config,
@@ -5682,7 +5705,8 @@ fun FloatingDock(
             HomeDockTabs(
                 selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
                 config = config, backdrop = backdrop, lightGlass = lightGlass,
-                modifier = Modifier.width(140.dp).excludeHomeAssistantPull(),
+                modifier = Modifier.width(com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
+                    .colorOsOrdinaryDockWidth()).excludeHomeAssistantPull(),
                 onSelect = { index -> if (index == 0) onHome() else onConfig() }
             )
         }
