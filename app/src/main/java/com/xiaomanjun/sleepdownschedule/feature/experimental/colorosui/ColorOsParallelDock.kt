@@ -47,6 +47,11 @@ import java.lang.reflect.Method
 
 private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView, val setClick: Method) {
     fun dispose() { setClick.invoke(root, null) }
+
+    fun refreshAppearance() {
+        root.javaClass.getMethod("onConfigurationChanged", android.content.res.Configuration::class.java)
+            .invoke(root, root.context.resources.configuration)
+    }
 }
 
 private fun createNativeFab(
@@ -88,7 +93,9 @@ internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier):
             createNativeFab(native.first, native.second, host, null)
         }
     } ?: return false
-    key(native) { AndroidView(factory = { fab.root }, modifier = modifier) }
+    key(native) { AndroidView(factory = { fab.root }, modifier = modifier, update = {
+        if (native.first.updateTheme(native.second, dark)) fab.refreshAppearance()
+    }) }
     DisposableEffect(fab) { onDispose { fab.dispose() } }
     return true
 }
@@ -182,6 +189,10 @@ internal fun ColorOsParallelHomeDock(
                     modifier = Modifier.fillMaxWidth().height(height).excludeHomeAssistantPull()
                         .semantics { testTag = "parallel_home_dock" },
                     update = {
+                        if (source.updateTheme(context, dark)) {
+                            group.dock.refreshAppearance()
+                            group.fab.refreshAppearance()
+                        }
                         group.dock.select(selectedIndex.coerceIn(0, 2))
                         group.expand(selectedIndex < 2, animate = true)
                         // Preserve COUI's overlap alpha on the main view while hiding the menu source.

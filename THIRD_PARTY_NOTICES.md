@@ -59,6 +59,12 @@ its popup host so backdrop consumers do not sample a producer that contains
 themselves. The patch base, application order and scope are documented in
 `patches/README.md`; the original package names and license headers are retained.
 
+The ColorOS home dock's `app/src/main/res/drawable/ic_coloros_dock_week.xml`
+is converted from `MiuixIcons.Regular.Weeks` to an Android VectorDrawable for
+the native toolbar. The original glyph, copyright and Apache-2.0 identifier
+are retained. A copy of the Apache License, Version 2.0 is included in
+[`third-party/kyant-backdrop/LICENSE`](third-party/kyant-backdrop/LICENSE).
+
 ## ShiGuangSchedule/shiguang_warehouse
 
 Education-system adapter indexes, YAML configuration and JavaScript resources

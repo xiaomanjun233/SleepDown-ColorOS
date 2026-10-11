@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Build
 import android.util.Log
 import android.util.TypedValue
@@ -16,11 +17,11 @@ import java.lang.reflect.Proxy
 
 /** Loads code and resources from the same installed system APK; no vendor code is bundled. */
 internal object ColorOsNativeUi {
-    const val Button = "com.coui.appcompat.button.COUIButton"
     const val ToolbarMaterial = "com.coui.appcompat.toolbar.ToolbarMaterialEffectDelegate"
     const val FloatingNavigation =
         "com.coui.appcompat.bottomfloatingnavigationbar.COUIBottomFloatingNavigationBar"
     const val FloatingButton = "com.coui.appcompat.floatingactionbutton.COUIFloatingButton"
+    val HomeAccent = 0xFF007AFF.toInt()
     private const val Tag = "SleepDownCOUI"
     private val sources = listOf("com.android.settings", "com.android.contacts", "com.coloros.filemanager")
     private var searched = false
@@ -42,7 +43,7 @@ internal object ColorOsNativeUi {
                 val source = Source(packageName, native)
                 // This first wave needs the ColorOS 17 floating bar and button material APIs.
                 source.load(FloatingNavigation)
-                source.load("$Button\$MaterialEffectState")
+                source.load(ToolbarMaterial).getMethod("forMenuItem", View::class.java)
                 check(source.resource("Theme.COUI.Main", "style") != 0)
                 check(source.resource("Theme.COUI.Main.Dark", "style") != 0)
                 source
@@ -81,32 +82,74 @@ internal object ColorOsNativeUi {
                 else ColorStateList.valueOf(value.data)
         }
 
+        fun tintSpotLight(owner: Any, declaringClass: String, fieldName: String) {
+            // COUI exposes the light's color setter, but no getter on these two hosts.
+            // Read the existing drawable; do not replace its touch handling or animation.
+            val field = load(declaringClass).getDeclaredField(fieldName).apply { isAccessible = true }
+            val light = field.get(owner) ?: return
+            light.javaClass.getMethod("setLightColor", Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType).invoke(light,
+                Color.red(HomeAccent) / 255f, Color.green(HomeAccent) / 255f, Color.blue(HomeAccent) / 255f)
+        }
+
         fun themedContext(host: Context, dark: Boolean): Context {
-            val configuration = Configuration(host.resources.configuration).apply {
-                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
-                    if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+            return NativeThemeContext(host, dark).also { configureMaterial(it) }
+        }
+
+        /** Update resources and theme in place: bound native views and their springs stay alive. */
+        fun updateTheme(context: Context, dark: Boolean): Boolean =
+            (context as NativeThemeContext).update(dark)
+
+        private inner class NativeThemeContext(host: Context, private var dark: Boolean,
+            private val configurationOverride: Configuration? = null) : ContextWrapper(host) {
+            private fun configuredContext(dark: Boolean): Context {
+                val configuration = Configuration(configurationOverride ?: baseContext.resources.configuration).apply {
+                    uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                        if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+                }
+                return native.createConfigurationContext(configuration)
             }
-            val configured = native.createConfigurationContext(configuration)
+
+            private fun styledContext(configured: Context, dark: Boolean): Context = ContextThemeWrapper(
+                configured, resource(if (dark) "Theme.COUI.Main.Dark" else "Theme.COUI.Main", "style"))
+
+            private var configured = configuredContext(dark)
+            private var styled = styledContext(configured, dark)
             // Keep the host's UID/package attribution for Settings and feature-provider access.
-            // Only the COUI code and resources come from the installed system APK.
-            val application = object : ContextWrapper(host.applicationContext) {
+            // This separate wrapper never captures this Activity-backed theme context.
+            private val application = nativeApplicationContext(host.applicationContext, configured)
+
+            fun update(wantedDark: Boolean): Boolean {
+                if (dark == wantedDark) return false
+                dark = wantedDark
+                configured = configuredContext(dark)
+                styled = styledContext(configured, dark)
+                return true
+            }
+
+            override fun getResources() = configured.resources
+            override fun getAssets() = configured.assets
+            override fun getTheme() = styled.theme
+            override fun setTheme(resId: Int) { styled.setTheme(resId) }
+            override fun getClassLoader(): ClassLoader = native.classLoader
+            override fun getApplicationContext(): Context = application
+            // COUI's FAB asks a configuration context for vendor dimension resources when refreshed.
+            override fun createConfigurationContext(overrideConfiguration: Configuration): Context =
+                NativeThemeContext(baseContext,
+                    overrideConfiguration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES,
+                    Configuration(overrideConfiguration))
+            override fun getSystemService(name: String): Any? =
+                if (name == Context.LAYOUT_INFLATER_SERVICE) LayoutInflater.from(baseContext).cloneInContext(this)
+                else super.getSystemService(name)
+        }
+
+        private fun nativeApplicationContext(host: Context, configured: Context): Context =
+            object : ContextWrapper(host) {
                 override fun getResources() = configured.resources
                 override fun getAssets() = configured.assets
                 override fun getApplicationContext(): Context = this
                 override fun getClassLoader(): ClassLoader = native.classLoader
             }
-            val resources = object : ContextWrapper(host) {
-                override fun getResources() = configured.resources
-                override fun getAssets() = configured.assets
-                override fun getClassLoader(): ClassLoader = native.classLoader
-                override fun getApplicationContext(): Context = application
-                override fun getSystemService(name: String): Any? =
-                    if (name == Context.LAYOUT_INFLATER_SERVICE) LayoutInflater.from(host).cloneInContext(this)
-                    else super.getSystemService(name)
-            }
-            val theme = resource(if (dark) "Theme.COUI.Main.Dark" else "Theme.COUI.Main", "style")
-            return ContextThemeWrapper(resources, theme).also { configureMaterial(it) }
-        }
 
         private fun configureMaterial(context: Context) {
             if (!materialObserverRegistered) {

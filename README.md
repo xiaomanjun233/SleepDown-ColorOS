@@ -8,6 +8,8 @@
 
 材质在创建控件前注册系统库的状态管理器，并监听模糊、描边及省电状态；明暗配置变化会同步更新。配置访问沿用 SleepDown 自身身份，资源与类仍来自同一个系统 APK。修复依据见[材质初始化记录](docs/reports/2026-10-12-coloros-material-initialization.md)。
 
+顶栏图标按钮参考系统相册的工具栏材质 delegate，底栏和顶栏按现有壁纸亮度策略刷新明暗，变色时保留原生 View 和 3+1 绑定。选中图标、文字及原生跟手光使用蓝色；设置齿轮保留原 Compose 图形。
+
 本地 `origin` 指向本仓库，`upstream` 指向原仓库。同步上游时先读取最新 `upstream/main`，在独立分支中合并并验证，避免覆盖本仓库的 ColorOS 改动。
 
 派生版 Release 包名为 `com.xiaomanjun.sleepdownschedule.coloros`，与原版并存、使用独立的应用数据。应用显示名称仍为“SleepDown课程表”；源码 namespace 和组件类名继续沿用上游，以避免破坏类引用。
