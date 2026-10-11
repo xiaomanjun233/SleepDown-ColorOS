@@ -230,7 +230,8 @@ internal fun ColorOsHomeIconButton(
     selected: Boolean,
     modifier: Modifier,
     onClick: () -> Unit,
-    toolbarNavigation: Boolean = false
+    toolbarNavigation: Boolean = false,
+    enabled: Boolean = true
 ): Boolean {
     val native = rememberNativeContext(dark) ?: return false
     val host = LocalContext.current
@@ -312,6 +313,7 @@ internal fun ColorOsHomeIconButton(
             if (source.updateTheme(context, dark)) button.refreshAppearance()
             view.contentDescription = contentDescription
             view.isSelected = selected
+            view.isEnabled = enabled
             // Resting return-anchor copies retain the normal material, without accepting input.
             view.setOnClickListener(if (interactive) View.OnClickListener {
                 if (menu != null) menu.show(view, menuEntries.value) else callback.value()

@@ -218,6 +218,7 @@ fun EduSchoolPickerScreen(
             onDismissRequest = { adapterChoices = null },
             messageMaxHeight = SleepDownDesignTokens.CenteredDialog.SelectionContentMaxHeight,
             scrollableMessageContent = true,
+            isSelector = true,
             messageContent = {
                 Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     choices.forEach { adapter ->

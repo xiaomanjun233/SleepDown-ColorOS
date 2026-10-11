@@ -190,6 +190,12 @@ fun CenterLiquidDialog(
     followGlassContrast: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    if (LocalNativeDialogSurface.current) {
+        Column(modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(SleepDownDesignTokens.Dialog.ContentSpacing),
+            content = content)
+        return
+    }
     LiquidDialogSurface(
         backdrop = backdrop,
         config = config,
@@ -526,8 +532,13 @@ fun LiquidAlertDialog(
     onDismissRequest: () -> Unit,
     messageMaxHeight: Dp = 240.dp,
     scrollableMessageContent: Boolean = false,
+    isSelector: Boolean = false,
     messageContent: (@Composable () -> Unit)? = null
 ) {
+    if (!isSelector && LocalNativeAlertRenderer.current?.invoke(NativeAlertRequest(
+            title, message, actions, appUsesDarkTheme(config), onDismissRequest,
+            messageMaxHeight, scrollableMessageContent, messageContent
+        )) == true) return
     val completeUnderlayBackdrop = LocalCenteredDialogSceneBackdrop.current ?: backdrop
     var visible by remember { mutableStateOf(true) }
     var completion by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -717,6 +728,11 @@ fun DialogLiquidButton(
         useRoundIcon && role == DialogButtonRole.Confirm -> R.drawable.ic_check
         else -> null
     }
+    if (LocalNativeDialogSurface.current && content == null &&
+        LocalNativeDialogButtonRenderer.current?.invoke(NativeDialogButtonRequest(
+            label, role == DialogButtonRole.Confirm, darkTheme, enabled, onClick,
+            modifier, height, if (useRoundIcon) resolvedIconRes else null
+        )) == true) return
     val superPerformance = com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
     val neutralFlat = superPerformance && !highContrast && role != DialogButtonRole.Confirm && !destructiveFilled
     val textColor = if (neutralFlat) {

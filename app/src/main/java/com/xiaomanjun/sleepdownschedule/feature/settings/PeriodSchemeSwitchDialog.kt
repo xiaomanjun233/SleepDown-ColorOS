@@ -39,6 +39,7 @@ internal fun PeriodSchemeSwitchDialog(
         onDismissRequest = onDismiss,
         messageMaxHeight = SleepDownDesignTokens.CenteredDialog.SelectionContentMaxHeight,
         scrollableMessageContent = true,
+        isSelector = true,
         messageContent = {
             val foreground = sleepDownPanelForegroundColor(config)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

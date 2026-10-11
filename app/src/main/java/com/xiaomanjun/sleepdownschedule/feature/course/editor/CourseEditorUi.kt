@@ -1073,7 +1073,9 @@ private fun CourseEditorFormPage(
     // This form lives on the wallpaper-sampling CourseGlassCard. Its complete foreground domain
     // must follow the glass contrast decision; appPanelForegroundColor follows the app theme and
     // produced black row labels on a dark sampled card while values/icons stayed light.
-    val editorContentColor = if (backdrop != null) {
+    val editorContentColor = if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogSurface.current) {
+        appPanelForegroundColor(config)
+    } else if (backdrop != null) {
         LocalAdaptiveGlass.current.contentColor
     } else {
         glassForegroundColor(config)

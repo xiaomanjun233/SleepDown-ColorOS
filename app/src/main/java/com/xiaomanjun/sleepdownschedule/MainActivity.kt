@@ -204,7 +204,12 @@ fun CourseScheduleTheme(
             )
         }
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), content = content)
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeAlertRenderer provides
+                { request -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsAlertDialog(request) },
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogButtonRenderer provides
+                { request -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsDialogButton(request) }
+        ) { Surface(modifier = Modifier.fillMaxSize(), content = content) }
     }
 }
 

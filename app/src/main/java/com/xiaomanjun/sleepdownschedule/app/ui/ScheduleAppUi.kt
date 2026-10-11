@@ -4492,12 +4492,13 @@ fun CourseScheduleAppUi(
                 }
             )
         } else {
-        Dialog(
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsOrComposeDialog(
+            config = state.config,
+            visible = homeDialogVisible,
             onDismissRequest = {
                 if (dialog is HomeDialog.EditCourse) homeCourseDismissHandler?.invoke() ?: dismissHomeDialog()
                 else dismissHomeDialog()
-            },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            }
         ) {
             if (dialog is HomeDialog.ImportSchedule) {
                 val dialogView = LocalView.current
@@ -4512,7 +4513,7 @@ fun CourseScheduleAppUi(
             }
             val animatedDialogContent: @Composable () -> Unit = {
                 AnimatedVisibility(
-                    visible = homeDialogVisible,
+                    visible = homeDialogVisible || com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogSurface.current,
                     enter = popEnterTransition(),
                     exit = popExitTransition()
                 ) {
@@ -5283,6 +5284,8 @@ fun TopGlassIconButton(
     buttonHeight: Dp = 42.dp
 ) {
     val lightGlass = glassUsesLightStyle(config)
+    if (ColorOsHomeIconButton(iconRes, contentDescription, dark = !lightGlass,
+            interactive = true, selected = false, modifier = modifier.size(buttonHeight), onClick = onClick)) return
     if (backdrop != null) {
         LiquidButton(
             onClick = onClick,
@@ -9181,6 +9184,8 @@ fun ScheduleNameDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    if (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNameDialog(
+            title, initialName, appUsesDarkTheme(config), null, onDismiss, onConfirm)) return
     var name by remember { mutableStateOf(initialName) }
     val textColor = glassForegroundColor(config)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
