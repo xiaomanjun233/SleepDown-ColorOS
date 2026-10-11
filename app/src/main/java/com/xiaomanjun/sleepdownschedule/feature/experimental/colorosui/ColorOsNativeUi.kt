@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
+import android.content.res.ColorStateList
 import android.os.Build
 import android.util.Log
+import android.util.TypedValue
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
@@ -15,6 +17,7 @@ import java.lang.reflect.Proxy
 /** Loads code and resources from the same installed system APK; no vendor code is bundled. */
 internal object ColorOsNativeUi {
     const val Button = "com.coui.appcompat.button.COUIButton"
+    const val ToolbarMaterial = "com.coui.appcompat.toolbar.ToolbarMaterialEffectDelegate"
     const val FloatingNavigation =
         "com.coui.appcompat.bottomfloatingnavigationbar.COUIBottomFloatingNavigationBar"
     const val FloatingButton = "com.coui.appcompat.floatingactionbutton.COUIFloatingButton"
@@ -64,8 +67,19 @@ internal object ColorOsNativeUi {
     }
 
     class Source(val packageName: String, private val native: Context) {
+        private val materialManagerType by lazy { load("com.coui.appcompat.COUIMaterialStateManager") }
+        private val materialManager by lazy { materialManagerType.getField("INSTANCE").get(null) }
+        private var materialObserverRegistered = false
+
         fun load(name: String): Class<*> = native.classLoader.loadClass(name)
         fun resource(name: String, type: String): Int = native.resources.getIdentifier(name, type, packageName)
+
+        fun color(context: Context, attribute: String): ColorStateList {
+            val value = TypedValue()
+            check(context.theme.resolveAttribute(resource(attribute, "attr"), value, true))
+            return if (value.resourceId != 0) context.getColorStateList(value.resourceId)
+                else ColorStateList.valueOf(value.data)
+        }
 
         fun themedContext(host: Context, dark: Boolean): Context {
             val configuration = Configuration(host.resources.configuration).apply {
@@ -73,7 +87,11 @@ internal object ColorOsNativeUi {
                     if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
             }
             val configured = native.createConfigurationContext(configuration)
-            val application = object : ContextWrapper(configured) {
+            // Keep the host's UID/package attribution for Settings and feature-provider access.
+            // Only the COUI code and resources come from the installed system APK.
+            val application = object : ContextWrapper(host.applicationContext) {
+                override fun getResources() = configured.resources
+                override fun getAssets() = configured.assets
                 override fun getApplicationContext(): Context = this
                 override fun getClassLoader(): ClassLoader = native.classLoader
             }
@@ -87,7 +105,27 @@ internal object ColorOsNativeUi {
                     else super.getSystemService(name)
             }
             val theme = resource(if (dark) "Theme.COUI.Main.Dark" else "Theme.COUI.Main", "style")
-            return ContextThemeWrapper(resources, theme)
+            return ContextThemeWrapper(resources, theme).also { configureMaterial(it) }
+        }
+
+        private fun configureMaterial(context: Context) {
+            if (!materialObserverRegistered) {
+                val flags = listOf("FLAG_MATERIAL_STROKE", "FLAG_MATERIAL_BLUR",
+                    "FLAG_MATERIAL_SPOTLIGHT", "FLAG_MATERIAL_CAUSTIC_SHADOW")
+                    .fold(0) { value, name -> value or materialManagerType.getField(name).getInt(null) }
+                // FOLLOW_SYSTEM reads these initially-false states; views only register listeners.
+                // The observer lives with this process-wide source and retains an application context.
+                materialManagerType.getMethod("registerMaterialStateObserver", Context::class.java,
+                    Int::class.javaPrimitiveType).invoke(materialManager, context, flags)
+                materialObserverRegistered = true
+            } else {
+                materialManagerType.getMethod("onConfigurationChange", Context::class.java)
+                    .invoke(materialManager, context)
+            }
+            val states = listOf("materialVersionCheck", "isFeatureEnabled", "isBlurEffectEnable",
+                "isStrokeEffectEnable", "isSpotLightEffectEnable", "isCausticShadowEffectEnable")
+                .joinToString { name -> "$name=${materialManagerType.getMethod(name).invoke(materialManager)}" }
+            Log.i(Tag, "Native material state: $states")
         }
 
         fun material(view: View, enumName: String) {

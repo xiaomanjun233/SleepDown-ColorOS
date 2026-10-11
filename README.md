@@ -6,6 +6,8 @@
 
 并列模式采用 `COUIBottomFloatingNavigationBar` + `COUIFloatingButton` 的 3+1 结构，由原生展开/收回接口管理弹簧动画与材质融合；不在原生路径叠加 Kyant 的按压、拖动高光、额外震动或手写融合动画。实现依据及验收范围见[第一波接入记录](docs/reports/2026-10-11-coloros-home-components.md)。
 
+材质在创建控件前注册系统库的状态管理器，并监听模糊、描边及省电状态；明暗配置变化会同步更新。配置访问沿用 SleepDown 自身身份，资源与类仍来自同一个系统 APK。修复依据见[材质初始化记录](docs/reports/2026-10-12-coloros-material-initialization.md)。
+
 本地 `origin` 指向本仓库，`upstream` 指向原仓库。同步上游时先读取最新 `upstream/main`，在独立分支中合并并验证，避免覆盖本仓库的 ColorOS 改动。
 
 派生版 Release 包名为 `com.xiaomanjun.sleepdownschedule.coloros`，与原版并存、使用独立的应用数据。应用显示名称仍为“SleepDown课程表”；源码 namespace 和组件类名继续沿用上游，以避免破坏类引用。

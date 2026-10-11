@@ -12,6 +12,7 @@
         <package android:name="com.android.settings" />
         <package android:name="com.android.contacts" />
         <package android:name="com.coloros.filemanager" />
+        <provider android:authorities="com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider" />
         <package android:name="com.suda.yzune.wakeupschedule" />
         <provider android:authorities="com.suda.yzune.wakeupschedule.provider" />
         <package android:name="moe.shizuku.privileged.api" />
