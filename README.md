@@ -1,4 +1,18 @@
-# SleepDown 课程表
+# SleepDown-ColorOS
+
+本仓库是 [SleepDown-Schedule](https://github.com/xiaomanjun233/SleepDown-Schedule) 的独立 ColorOS 派生仓库，保留上游 Git 历史。起始基线为 `9662d1034ed2941f494ed65c785cc1d21ac833c6`（2026-10-11 的最新 `main`）。原项目文档与许可证继续适用。
+
+第一波只尝试首页底栏和顶栏图标按钮：在支持的 ColorOS 系统上，从已安装的系统应用加载 COUI 控件、资源、明暗主题及原生材质，触摸、按压动画、滑动选中和震动由 COUI 控件处理；其他设备与商店渠道继续使用现有界面。菜单内容、课程卡片、选择器和其他页面留待本轮验收后调整。这里是实验派生版本，尚未完成实机交互验收。
+
+并列模式采用 `COUIBottomFloatingNavigationBar` + `COUIFloatingButton` 的 3+1 结构，由原生展开/收回接口管理弹簧动画与材质融合；不在原生路径叠加 Kyant 的按压、拖动高光、额外震动或手写融合动画。实现依据及验收范围见[第一波接入记录](docs/reports/2026-10-11-coloros-home-components.md)。
+
+本地 `origin` 指向本仓库，`upstream` 指向原仓库。同步上游时先读取最新 `upstream/main`，在独立分支中合并并验证，避免覆盖本仓库的 ColorOS 改动。
+
+派生版 Release 包名为 `com.xiaomanjun.sleepdownschedule.coloros`，与原版并存、使用独立的应用数据。应用显示名称仍为“SleepDown课程表”；源码 namespace 和组件类名继续沿用上游，以避免破坏类引用。
+
+以下保留原项目介绍。
+
+## SleepDown 课程表
 
 > 项目交流群：1108032519
 

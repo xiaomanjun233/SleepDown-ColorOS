@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -35,6 +36,8 @@ import com.xiaomanjun.sleepdownschedule.app.ui.*
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownFloatingAddButton
 import com.xiaomanjun.sleepdownschedule.feature.agent.excludeHomeAssistantPull
+import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeFloatingButtonVisual
+import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsParallelHomeDock
 import com.xiaomanjun.sleepdownschedule.glass.withRecordingDensity
 import com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
@@ -51,6 +54,7 @@ internal fun homeImportButtonGlassColor(light: Boolean): Color =
 internal fun HomeImportButtonReturnVisual(
     backdrop: Backdrop?, config: ScheduleConfigEntity, modifier: Modifier = Modifier
 ) {
+    if (ColorOsHomeFloatingButtonVisual(dark = !LocalAdaptiveGlass.current.lightGlass, modifier = modifier)) return
     SleepDownFloatingAddButton(
         backdrop = backdrop,
         contentDescription = "添加与导入",
@@ -74,6 +78,11 @@ internal fun ParallelHomeDock(
     val homeSelected = selectedIndex < 2
     val adaptiveGlass = LocalAdaptiveGlass.current
     val light = if (homeSelected) adaptiveGlass.lightGlass else !appUsesDarkTheme(config)
+    if (ColorOsParallelHomeDock(
+            selectedIndex = selectedIndex, dark = !light, buttonHidden = buttonHidden,
+            modifier = modifier, onSelect = onSelect, onOpenMenu = onOpenMenu
+        )) return
+    val view = LocalView.current
     val ink by animateColorAsState(
         if (homeSelected) adaptiveGlass.contentColor else if (light) Color.Black else Color.White,
         tween(220), label = "ParallelDockInk")
@@ -118,7 +127,10 @@ internal fun ParallelHomeDock(
                 clipPath(mask, ClipOp.Difference) { this@drawWithContent.drawContent() }
             }) {
                 SleepDownFloatingAddButton(onClick = {
-                    if (buttonBounds.width > 1f && buttonBounds.height > 1f) onOpenMenu(buttonBounds, returnButtonLayer)
+                    if (buttonBounds.width > 1f && buttonBounds.height > 1f) {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        onOpenMenu(buttonBounds, returnButtonLayer)
+                    }
                 }, backdrop = backdrop, contentDescription = "添加与导入", enabled = buttonInteractive,
                     modifier = Modifier.offset {
                         val s = split.value.coerceIn(0f, 1f)

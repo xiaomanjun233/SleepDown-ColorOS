@@ -25,6 +25,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.*
 import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.feature.home.week.*
 import com.xiaomanjun.sleepdownschedule.feature.home.overlay.*
+import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeIconButton
 
 import com.xiaomanjun.sleepdownschedule.app.config.SleepDownRemoteConfig
 import com.xiaomanjun.sleepdownschedule.core.performance.*
@@ -3107,7 +3108,6 @@ fun CourseScheduleAppUi(
                         .homeCountdownShockwave(0.85f)
                 ) {
                     if (parallelPhoneNavigation) {
-                        val dockButtonView = LocalView.current
                         ParallelHomeDock(
                             selectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1,
                             backdrop = chromeBackdrop,
@@ -3124,7 +3124,6 @@ fun CourseScheduleAppUi(
                             buttonHidden = homeMenuFromDock && addButtonHidden,
                             onOpenMenu = { bounds, returnButtonLayer ->
                                 if (!homeBackgroundOverlayActive && !homeDialogVisible) {
-                                    performButtonHaptic(dockButtonView)
                                     dockImportReturnLayer = returnButtonLayer
                                     dockImportButtonBounds = bounds
                                     homeMenuFromDock = true
@@ -5459,6 +5458,8 @@ fun HomeIconButton(
             modifier = Modifier.fillMaxSize(),
             isInteractive = visible,
             pressSnapshot = pressSnapshot,
+            // COUI owns touch animation and haptics; only forward the business action.
+            onNativeClick = { onClick(1f) },
             onClick = {
                 performButtonHaptic(view)
                 onClick(capturedScale())
@@ -5478,10 +5479,20 @@ internal fun HomeIconButtonVisual(
     accentColor: ComposeColor = ComposeColor.Unspecified,
     isInteractive: Boolean = true,
     pressSnapshot: LiquidButtonPressSnapshot? = null,
+    onNativeClick: (() -> Unit)? = null,
     onClick: () -> Unit = {}
 ) {
     val adaptiveGlass = LocalAdaptiveGlass.current
     val lightGlass = adaptiveGlass.lightGlass
+    if (ColorOsHomeIconButton(
+            iconRes = iconRes,
+            contentDescription = contentDescription,
+            dark = !lightGlass,
+            interactive = isInteractive,
+            selected = selected,
+            modifier = modifier,
+            onClick = onNativeClick ?: onClick
+        )) return
     val baseSurfaceColor = if (lightGlass) HomeLightGlassSurfaceColor else ComposeColor(0xFF121212)
     val buttonSurfaceColor = if (accentColor.isSpecified) {
         accentColor.copy(alpha = if (lightGlass) HomeLightGlassAccentTintAlpha else 0.32f)
@@ -5667,22 +5678,13 @@ fun FloatingDock(
             .graphicsLayer { translationY = imeCompensationPx.toFloat() },
         contentAlignment = dockAlignment
     ) {
-        if (backdrop != null) {
-            CompositionLocalProvider(LocalContentColor provides dockTextColor) {
-                HomeDockTabs(
-                    selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
-                    config = config, backdrop = backdrop, lightGlass = lightGlass,
-                    modifier = Modifier.width(140.dp).excludeHomeAssistantPull(),
-                    onSelect = { index -> if (index == 0) onHome() else onConfig() }
-                )
-            }
-        } else {
-            GlassPill(backdrop = null, config = config, modifier = Modifier.width(140.dp).excludeHomeAssistantPull()) {
-                Row(modifier = Modifier.height(54.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    DockItem(selected is Screen.Home, null, config, R.drawable.ic_week_view, "课程", onHome)
-                    DockItem(selected is Screen.Config, null, config, R.drawable.ic_settings, "设置", onConfig)
-                }
-            }
+        CompositionLocalProvider(LocalContentColor provides dockTextColor) {
+            HomeDockTabs(
+                selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
+                config = config, backdrop = backdrop, lightGlass = lightGlass,
+                modifier = Modifier.width(140.dp).excludeHomeAssistantPull(),
+                onSelect = { index -> if (index == 0) onHome() else onConfig() }
+            )
         }
     }
 }

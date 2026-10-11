@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
+        <package android:name="com.android.settings" />
+        <package android:name="com.android.contacts" />
+        <package android:name="com.coloros.filemanager" />
         <package android:name="com.suda.yzune.wakeupschedule" />
         <provider android:authorities="com.suda.yzune.wakeupschedule.provider" />
         <package android:name="moe.shizuku.privileged.api" />
