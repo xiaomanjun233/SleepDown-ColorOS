@@ -26,7 +26,6 @@ import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.feature.home.week.*
 import com.xiaomanjun.sleepdownschedule.feature.home.overlay.*
 import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeIconButton
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.colorOsHeaderMaterialCutouts
 
 import com.xiaomanjun.sleepdownschedule.app.config.SleepDownRemoteConfig
 import com.xiaomanjun.sleepdownschedule.core.performance.*
@@ -2761,10 +2760,7 @@ fun CourseScheduleAppUi(
                                 fullBlurHeight = if (homeMode == HomeMode.Week && weekViewStyle == WeekViewStyle.BOUNDLESS) {
                                     homeAdaptiveMetrics.safeTop + 66.dp + BoundlessWeekHeaderRowHeight + 4.dp
                                 } else 0.dp,
-                                modifier = Modifier.colorOsHeaderMaterialCutouts(listOfNotNull(
-                                    personalizeButtonBounds.takeIf { activeHomeAnchoredOverlay != HomeAnchoredOverlayKind.Personalize },
-                                    addButtonBounds.takeIf { homeMenuFromDock || !addButtonHidden }
-                                ))
+                                modifier = Modifier
                             )
                         }
                     }
@@ -3523,10 +3519,12 @@ fun CourseScheduleAppUi(
     }
 
     val latestNativeCourseManagement = rememberUpdatedState<() -> Unit> {
-        // The native popup is a separate window. Use the registered Activity route after its
-        // dismiss animation, rather than capturing the previous Compose liquid menu shell.
-        context.openRegisteredActivity(TransitionRouteId.HomeToCourseManagement,
-            Intent(context, CourseManagementActivity::class.java).putCourseManagementInitialState(state))
+        val activity = context.findActivity()
+        if (activity != null && !activity.isFinishing) appScope.launch {
+            // Native-capable routes require the suspending coordinator even without an anchor.
+            ActivityTransitionCoordinator.open(activity, TransitionRouteId.HomeToCourseManagement,
+                Intent(context, CourseManagementActivity::class.java).putCourseManagementInitialState(state))
+        }
     }
     val nativeOverflowActions = remember(homeAddActions) {
         listOf(AddMenuAction(R.drawable.ic_courses, "课程管理") { latestNativeCourseManagement.value() }) +

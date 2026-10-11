@@ -288,7 +288,8 @@ internal fun ColorOsHomeIconButton(
             val follow = state.getMethod("getValue").invoke(state.getField("FOLLOW_SYSTEM").get(null))
             type.getMethod("setUseMaterialEffectAttr", Int::class.javaPrimitiveType).invoke(effect, follow)
             val materialType = source.load("com.coui.appcompat.toolbar.COUIMaterialEffectType")
-                .getField("TYPE_DEFAULT").getInt(null)
+                // TYPE_DEFAULT is a tint-only preset with a zero blur radius in ColorOS 17.
+                .getField("TYPE_DEFAULT_BLUR").getInt(null)
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(effect, materialType)
             NativeIconButton(view, sizedIcon, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
                 view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {

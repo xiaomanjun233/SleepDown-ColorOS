@@ -1,5 +1,7 @@
 # ColorOS 壁纸色、二级控件及并列模式菜单
 
+此文记录首个安装候选及当时的实现。后续实机反馈确认其顶栏/搜索材质、键盘开关及菜单路由存在问题；顶栏采样开孔方案已经撤回，修复依据见[材质与菜单修复](2026-10-12-coloros-material-menu-fixes.md)。下方首个候选的构建和安装事实不代表这些交互已验收通过。
+
 本轮承接首页实机反馈。用户指定：Dock 选中态、跟手光、加号从壁纸取色，失败时回到原生加号蓝色；左侧选中态蓝色对齐原生加号；Dock 以外的跟手光保留系统默认。新增替换二级页面搜索框和返回按钮，以及并列模式三点菜单。普通模式三点菜单暂不替换，但修正其两项 Dock 尺寸。应用名和独立包身份不变。
 
 ## 实现及依据
@@ -9,10 +11,10 @@
 - 菜单到加号的源色与返回按钮同步取色，避免从原生加号切回硬编码 `#007AFF`。原生展开/回收弹簧或布局仍在进行时不接受菜单锚点交接，以免菜单冻结一个还在移动的按钮。只读取三个原生展开动画的运行状态，不写内部状态，也不把普通触摸缩放当成展开动画。
 - 普通模式原先将原生 bar 放进 `140dp × 54dp` 的外壳。系统两项布局需要完整单元、单元间距、菜单内边距及 bar 外边距。本机 Settings 库资源分别为单元最大宽 70dp、间距 8dp、菜单单侧 8dp、bar 单侧 16dp，外壳宽度因此为 196dp，bar 高度读系统资源 56dp；原生控件自己测量实际胶囊。不新增设备分辨率特例。
 - 顶栏从宿主 ImageButton 手动附加 delegate 改为完整 `COUIActionMenuItemView`，与系统相册使用同类控件。MenuBuilder、MenuItemImpl、View 和资源来自同一系统 APK。初始化原生菜单项并显式 `setItemIsDrawableMaterialEffect(false)`，保持独立 View 材质和 FOLLOW_SYSTEM；保留 20dp 图标，使用原生测量、配置刷新和光效绘制。核对反编译实现发现旧的 `setIfInBlurWindow(false)` 会开启 drawable-only 模式并 FORCE_DISABLE，不能凭方法名用它开启独立模糊，最终实现不调用它。
-- 原先整条 `HomeTopGradientBlur` 位于按钮下方，原生背景采样只能看见这条已经模糊的表面。本轮按两个真实按钮的根布局 bounds，在顶栏模糊带留下圆形采样区域，让对应位置露出实际首页内容，按钮自身负责圆形材质；标题区域继续保持渐变模糊。使用真实坐标转换、跟随显隐，不写设备坐标。日志增加实际控件类、drawable-only 状态及 `canApplyBackgroundRenderEffect`。用户反馈的“只有顶栏模糊带生效”仍需验证最终实际渲染，不能用全局材质状态为 true 代替验证。
+- 首个候选曾按两个按钮 bounds 在 `HomeTopGradientBlur` 留出采样区域。这一假设没有解决实际问题，后续确认原生 `TYPE_DEFAULT` 的 blur radius 为零，开孔反而破坏渐变层，已经删除。日志中材质开关为 true 不代表具体预设启用了模糊。
 - `TopBackButton` 的公共入口使用工具栏导航按钮的原生 material delegate，所有通过公共详情页/设置页顶栏调用它的页面统一接入，业务返回/保存回调不变。箭头形状的列表展开提示、周数切换及网页历史前进/后退不属于页面返回按钮，未整体替换。
-- 当前源码中唯一的搜索输入入口是 `SchoolSearchField`。它改用完整 `COUISearchBar`，保留学校/工具过滤回调、外部 query 同步、输入选择位置、原生清除、IME Search、取消和返回收键盘。COUI 处理编辑态切换、触摸、融合和材质；不叠加原搜索框的 Kyant 外壳、跟手变形或分裂动画。宿主 `EduSchoolDockViewport` 已结合 adjustResize 和实测底边处理键盘避让，原生控件不再额外扣一次 IME 高度。
-- 仅并列模式为三点按钮提供 `COUIPopupListWindow` / `PopupListItem`。保留课程管理、跳转周数、课表设置三项，在原生菜单关闭回调后执行业务操作；普通模式仍走已有菜单。原生弹出菜单处于独立窗口，课程管理使用已注册 Activity 路由及完整初始状态，不再抓取旧 Compose 液滴菜单快照作为源。
+- `SchoolSearchField` 改用完整 `COUISearchBar`，复用学校/工具过滤回调和外部 query 同步。首个候选将 `setInputMethodAnimationEnabled` 关闭以避免重复 IME 位移，但实机反馈后确认该开关同时禁止 `openSoftInput`，必须恢复为 true。搜索提交也不能调用会清空查询的 normal-state 切换。后续修复保留原生触摸与键盘开启，宿主继续处理页面避让。
+- 仅并列模式为三点按钮提供 `COUIPopupListWindow` / `PopupListItem`，保留课程管理、跳转周数、课表设置三项；普通模式仍走已有菜单。首个候选误将 `OnDismiss` 当作退出动画完成通知，并用同步路由打开课程管理；实机日志确认该 native-capable 路由要求 suspend `open()`，导致闪退。后续改为原生动画结束/窗口 detach 后执行动作，再通过 suspending coordinator 携带完整初始状态打开页面。
 
 ## 验证
 

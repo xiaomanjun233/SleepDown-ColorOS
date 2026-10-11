@@ -49,9 +49,11 @@ internal fun ColorOsSchoolSearchField(
             val view = type.getConstructor(Context::class.java).newInstance(context) as ViewGroup
             type.getMethod("setUseMaterialEffectAttr", Int::class.javaPrimitiveType)
                 .invoke(view, type.getField("FOLLOW_SYSTEM").getInt(null))
-            // The page already lifts this floating dock with the IME inset; do not install a
-            // second root-window IME translation callback from the standalone COUI toolbar.
-            type.getMethod("setInputMethodAnimationEnabled", Boolean::class.javaPrimitiveType).invoke(view, false)
+            type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(view,
+                source.load("com.coui.appcompat.toolbar.COUIMaterialEffectType").getField("TYPE_DEFAULT_BLUR").getInt(null))
+            type.getMethod("setIsDrawableMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, false)
+            // This flag also gates openSoftInput(), not just animation. Keep native IME ownership.
+            type.getMethod("setInputMethodAnimationEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
             val edit = type.getMethod("getSearchEditText").invoke(view) as EditText
             edit.hint = "搜索学校或教务工具…"
             edit.contentDescription = "搜索学校或教务工具"
@@ -74,9 +76,11 @@ internal fun ColorOsSchoolSearchField(
                 edit.setText(value)
                 edit.addTextChangedListener(watcher)
                 edit.setOnEditorActionListener { _, action, _ ->
-                    if (action == EditorInfo.IME_ACTION_SEARCH) { control.close(); true } else false
+                    if (action == EditorInfo.IME_ACTION_SEARCH) { control.finishQuery(); true } else false
                 }
-                (type.getMethod("getFunctionalButton").invoke(view) as TextView).setOnClickListener { control.close() }
+                (type.getMethod("getFunctionalButton").invoke(view) as TextView).setOnClickListener {
+                    if (currentQuery.value.isBlank()) control.close() else control.finishQuery()
+                }
             }
         }
     } ?: return false
@@ -113,6 +117,12 @@ private class NativeSearch(val view: ViewGroup, val edit: EditText, val listener
     fun close() {
         view.javaClass.getMethod("changeState", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
             .invoke(view, 0, true)
+        view.javaClass.getMethod("openSoftInput", Boolean::class.javaPrimitiveType).invoke(view, false)
+        edit.clearFocus()
+    }
+
+    fun finishQuery() {
+        // Returning to COUI's normal state clears the query. Search submits only dismiss the IME.
         view.javaClass.getMethod("openSoftInput", Boolean::class.javaPrimitiveType).invoke(view, false)
         edit.clearFocus()
     }
