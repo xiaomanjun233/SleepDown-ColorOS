@@ -26,7 +26,18 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 ## 弹窗操作顺序
 
-`LiquidAlertActionStyle.Cancel` 表达取消/继续编辑语义，不按显示文本判断。纵向操作按 Primary → 普通/破坏性操作 → Cancel 排列。COUI 三排的物理顺序为 neutral → positive → negative，因此 Primary 映射到 neutral、取消映射到 negative；两操作使用 positive → negative。原生按钮栏的 recommend ID 同步到实际 Primary 按钮，业务回调仍按原始 action 索引绑定。Compose 三排后备布局使用同一优先级。
+`LiquidAlertActionStyle.Cancel` 表达取消、稍后、返回修改和继续编辑语义，不按显示文本判断。纵向操作按 Primary → Secondary → Destructive → Cancel 排列，同类动作保留声明顺序。COUI 三排的物理顺序为 neutral → positive → negative，因此 Primary 映射到 neutral、取消映射到 negative；两操作使用 positive → negative，横向时确认在右、取消在左。Compose 后备布局使用相同语义顺序。回调始终按原始 action 索引绑定。
+
+原生按钮栏的 recommend ID 同步到实际 Primary 按钮；没有 Primary 时明确清除推荐 ID，防止破坏性动作在材质刷新后变为主题色主按钮。新弹窗按下面规则声明，不依赖声明顺序或原生槽位默认色：
+
+| 语义 | 样式 | 例子 |
+| --- | --- | --- |
+| 推荐的非破坏性操作 | Primary，主题色白字 | 保存、完成、创建新课表、分享口令、授权 |
+| 其他可选操作 | Secondary，普通前景 | 分享 ICS、备用下载、切换识别方式 |
+| 删除或丢弃已有内容 | Destructive，红字 | 仅删除本次、删除全部、覆盖当前课表、不保存、替换恢复 |
+| 关闭/返回而不执行当前决策 | Cancel，普通前景 | 取消、稍后、继续编辑、返回检查 |
+
+恢复到空应用没有覆盖已有数据，使用 Primary；恢复报告确认存在旧数据时使用 Destructive。选择器的选中项不是确认按钮，不按此规则重排。表单标题栏仍为取消在左、完成在右。
 
 按钮类型和文字颜色明确按业务语义设置，不继承位置默认色。分享 ICS 是 Secondary，使用普通字色；只有 Destructive 使用错误色。课程 shortcut 的删除图标和文字继续使用红色，不受弹窗排序影响。
 
@@ -36,13 +47,16 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 - 加号保留主题色底，图标固定白色。形变起点匹配原生 FAB 的不透明主题层，向中性菜单表面连续插值。
 - 展开的菜单与形变目标使用同一个中性色函数，避免壁纸亮度判断和菜单主题判断在交接处产生跳色。
-- 三点菜单在系统列表完成绑定后，同时设置 TextView、ImageView 与复合图标的前景色，避免原生适配器重新套用旧图标 tint。
+- 三点菜单和课程 shortcut 通过原生 `PopupListItem.setForceTint(0)` 保留逐项图标色，通过 `setTitleColorList` 指定逐项字色。ListView 与 RecyclerView 两条适配器路线都会在重绑时读取这些属性；不再靠遍历 AdapterView 子树找行号补色。垃圾桶图标和删除文字保留 `#FF453A`。
+- 加号展开菜单的行显式接收外层算出的前景色，避免行内按应用主题重新取色，覆盖壁纸下的反色结果。
 - Dock 和加号仍位于完整首页快照内；框架迁移不把它们移到根页面上方。完整采样、临时变换和快照的归属仍由页面宿主管理。
-- 壁纸主题色分为按钮原始色与 Dock 强调色：按钮恢复原来的 HSV 取色，只有 Dock 结合底部实际可见背景提高对比度。形变起点与实际加号底色一致。
+- 壁纸主题色分为按钮原始色与 Dock 强调色：按钮保留原 HSV 饱和度/亮度范围，只有 Dock 结合底部实际可见背景提高对比度。颜色在后台从壁纸源图独立提取，允许暗色 swatch；不复用会过滤暗色的课程色板。黑白等没有有效色相的壁纸仍回退默认蓝色。形变起点与实际加号底色一致。
 - Dock 跟手光保持 2× 原始强度，颜色与 Dock 强调色一致；重复更新材质不叠加强度。
 - 首页判为深色壁纸时，Dock、按钮及菜单恢复原生深色材质；浅色壁纸使用中性天气材质，无壁纸时使用应用明暗主题。前景继续与首页文字反色保持一致。
 - 原生 Dock 的后备内容通过稳定 State 传入，避免未使用的 Compose 后备函数捕获背景状态后改变原生宿主参数。shortcut 的整页模糊保留，动画进度只由绘制层读取；这一隔离不等同于实机重组次数已验证。
 - 课程共享模糊采样通过可跟踪的 `compositionLocalOf` 提供。个性化滑杆替换采样器时只更新课程消费者，不再让 static provider 刷新整页和原生 Dock。
+- 凝光模式通过稳定的 State 持有开关、着色和模糊值，只有读取对应值的消费者订阅变化，框架 provider 不随拖动重新创建模式。表面着色变化仅 invalidate；只有模糊、描边、明暗或可见性变化才重新安装原生效果。
+- 个性化实时整页模糊与冻结路径一样，先录制完整页面，再模糊录制层；不把变化的 RenderEffect 直接挂到原生 Dock 的祖先层。Dock 仍在页面快照及整页模糊范围内。桌面重组测试不等同于实机 GPU 材质已验收。
 
 ## 课程 shortcut
 
@@ -58,13 +72,19 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 原生 View 负责模糊、描边和跟手光，Compose 负责文字、图标、布局和编辑输入。背景不拦截输入、不创建按钮点击行为；动态形状在 draw/layer 中读取并更新原生 outline，保留既有 AI 形变及快照归属。表头的模糊半径为系统通透预设的 60%；日期状态胶囊叠加原配色的纵向渐变，上部着色 30%、底部 50%，不再使用按钮的统一实色层。
 
+成功使用原生材质的内容通过 `LocalNativeMaterialSurfaceActive` 获知这一状态。今日助手不再叠加旧的按压黑色遮罩，沿用原生跟手光；原生能力不可用时保留旧按压反馈。这个局部标志表示实际渲染结果，不靠厂商名猜测是否成功。
+
 ## 课程凝光与渐变模糊
 
-课程凝光保留课程渐变色与默认 50% 着色，模糊沿用内容通透预设。课程与表头描边基于 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`，宽度调为该预设的 1.3 倍，让光感略多覆盖圆角；亮度、方向和阴影衰减仍取系统值。跟手光使用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角，也不额外设置 OplusMaterialCornerParams。个性化面板只保留开关与着色滑杆，不显示模式说明文字。
+课程凝光保留课程渐变色与默认 50% 着色。模糊滑杆范围为 0–100，默认 50 对应系统内容通透预设半径，100 对应两倍半径，0 关闭 blur effect，仍保留渐变及原生描边。内部仍保存 0–2 的半径比例，旧值仅换算显示、不改变效果。偏好仅保存在派生版的独立 SharedPreferences，不改变 Room 和备份格式；拖动预览不写盘，提交后保存，预览取消时恢复已保存值。
+
+课程与表头描边基于 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`，宽度调为该预设的 1.3 倍，让光感略多覆盖圆角；亮度、方向和阴影衰减仍取系统值。跟手光使用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角，也不额外设置 OplusMaterialCornerParams。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画；不显示说明文字、旧轮廓光开关或折射滑杆。新增行计入后续行号和动画总时长。
 
 所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
 
 不再调用 `setUpGradientBlurBackground(View)`：它会同时添加系统页面底色的 `GradientBackgroundDrawable`，造成首页白色遮罩。当前仅调用原生模糊算子，并保留应用原有显式着色；首页原本为零的着色不会被系统底色覆盖。监听系统材质开关，关闭时不继续添加模糊效果；缺少原生能力时使用原有算法。私有原生 API 的方向及观感仍需 ColorOS 真机验收，桌面测试不能证明系统 GPU 输出。
+
+首页和公共设置/二级页顶栏通过 `LocalToolbarBackdropBlurred` 告知图标按钮底下是否已有渐变模糊。存在渐变层时，按钮自身的第二次背景模糊半径降为对应预设的 0.35 倍；没有渐变层时仍使用完整预设。沿用各自天气/深色顶栏的颜色层和 BlendMode，保留原生材质、描边与跟手光，不开启 drawable-only 模式。此调整减轻两次模糊叠加，并不宣称只剩一次采样。
 
 ## 验证入口
 
