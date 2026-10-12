@@ -41,7 +41,8 @@ internal class NativeDock(
     private val source: ColorOsNativeUi.Source,
     private val context: Context,
     private var accent: Int,
-    private var neutral: Boolean
+    private var neutral: Boolean,
+    private var foreground: Int?
 ) {
     fun refreshAppearance() {
         // refresh() leaves the expansion view, metaball chain and active springs bound.
@@ -51,19 +52,16 @@ internal class NativeDock(
             "night=${context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK}")
     }
 
-    fun updateAccent(color: Int, neutral: Boolean = this.neutral, force: Boolean = false) {
-        if (!force && color == accent && neutral == this.neutral) return
+    fun updateAccent(color: Int, neutral: Boolean = this.neutral, foreground: Int? = this.foreground, force: Boolean = false) {
+        if (!force && color == accent && neutral == this.neutral && foreground == this.foreground) return
         accent = color
+        this.foreground = foreground
         val restorePreset = this.neutral && !neutral
         this.neutral = neutral
         if (restorePreset) view.javaClass.getMethod("refresh").invoke(view)
-        val colors = dockIconColors(source, context, color)
-        icons.forEach {
-            it.setTintList(colors)
-            (it as DockContrastIcon).setContrastEnabled(neutral)
-        }
+        val colors = dockIconColors(source, context, color, foreground)
+        icons.forEach { it.setTintList(colors) }
         view.javaClass.getMethod("setItemsTitleTextColor", ColorStateList::class.java).invoke(view, colors)
-        applyDockTextContrast(view, neutral)
         tintLight()
         applyMaterial()
     }
@@ -81,24 +79,18 @@ internal class NativeDock(
         }
     }
 
-    fun refreshContentContrast() { applyDockTextContrast(view, neutral) }
-
     fun tintLight() {
         val base = "com.coui.appcompat.bottomfloatingnavigationbar.BaseBottomFloatingMenuView"
         val menuType = source.load(base)
         for (index in 0 until view.childCount) {
             val child = view.getChildAt(index)
-            if (menuType.isInstance(child)) source.tintSpotLight(child, base, "mSpotLightEffectDrawable",
-                if (neutral) android.graphics.Color.WHITE else accent)
+            if (menuType.isInstance(child)) source.tintSpotLight(child, base, "mSpotLightEffectDrawable", accent)
         }
     }
 
     fun select(index: Int) {
         val wanted = index + 1
-        if (getSelected.invoke(view) == wanted) {
-            applyDockTextContrast(view, neutral)
-            return
-        }
+        if (getSelected.invoke(view) == wanted) return
         // State synchronization is separate from the native user's touch/slide callbacks.
         setListener.invoke(view, null)
         try {
@@ -106,7 +98,6 @@ internal class NativeDock(
         } finally {
             setListener.invoke(view, listener)
         }
-        applyDockTextContrast(view, neutral)
     }
 
     fun expansionMoving(): Boolean = listOf("mExpansionViewAlphaAnim", "mExpansionViewScaleAnim",
@@ -118,8 +109,8 @@ internal class NativeDock(
     fun dispose() { setListener.invoke(view, null) }
 }
 
-private fun dockIconColors(source: ColorOsNativeUi.Source, context: Context, accent: Int): ColorStateList {
-    val variant = source.color(context, "couiColorLabelPrimaryVariant").defaultColor
+private fun dockIconColors(source: ColorOsNativeUi.Source, context: Context, accent: Int, foreground: Int?): ColorStateList {
+    val variant = foreground ?: source.color(context, "couiColorLabelPrimaryVariant").defaultColor
     val disabled = source.color(context, "couiColorLabelTertiary").defaultColor
     return ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),
         intArrayOf(android.R.attr.state_checked), intArrayOf(android.R.attr.state_selected),
@@ -135,13 +126,14 @@ internal fun createNativeHomeDock(
     selectedIndex: Int,
     accent: Int,
     neutral: Boolean = false,
+    foreground: Int? = null,
     onSelect: (Int) -> Unit
 ): NativeDock {
     val type = source.load(ColorOsNativeUi.FloatingNavigation)
     val bar = type.getConstructor(Context::class.java).newInstance(context) as ViewGroup
     val builderType = source.load("$NavigationItem\$Builder")
     // COUI tints its labels, but accepts custom icons without applying a tint to them.
-    val iconColors = dockIconColors(source, context, accent)
+    val iconColors = dockIconColors(source, context, accent, foreground)
     val icons = mutableListOf<Drawable>()
     val items = tabs.mapIndexed { index, (icon, title) ->
         val builder = builderType.getConstructor().newInstance()
@@ -154,8 +146,7 @@ internal fun createNativeHomeDock(
             // This XML has the same path as the original Compose Icons.Default.Settings.
             else -> icon
         }
-        val drawable = DockContrastIcon(requireNotNull(ContextCompat.getDrawable(host, currentIcon)).mutate(),
-            context.resources.displayMetrics.density, iconColors).apply { setContrastEnabled(neutral) }
+        val drawable = requireNotNull(ContextCompat.getDrawable(host, currentIcon)).mutate()
         drawable.setTintList(iconColors)
         icons += drawable
         builderType.getMethod("setIcon", android.graphics.drawable.Drawable::class.java)
@@ -182,10 +173,10 @@ internal fun createNativeHomeDock(
     bar.clipToPadding = false
     return NativeDock(bar, type.getMethod("getSelectedItemId"),
         type.getMethod("setSelectedItemId", Int::class.javaPrimitiveType), setListener, listener,
-        icons, source, context, accent, neutral).also { dock ->
+        icons, source, context, accent, neutral, foreground).also { dock ->
         source.bindFollowLightIntensity(bar, afterMaterialApplied = {
             dock.applyMaterial()
-            dock.refreshContentContrast()
+            dock.tintLight()
         })
         bar.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) { view.post { dock.tintLight() } }
@@ -242,13 +233,14 @@ internal fun ColorOsHomeDock(
     }
     val dock = remember(source, context, tabs) {
         ColorOsNativeUi.prepare("create the floating navigation bar") {
-            createNativeHomeDock(source, context, host, tabs, selectedIndex, accent, neutral = style != null) { callback.value(it) }
+            createNativeHomeDock(source, context, host, tabs, selectedIndex, accent,
+                neutral = style?.weatherMaterial == true, foreground = style?.foreground) { callback.value(it) }
         }
     } ?: return false
     key(context, tabs) {
         AndroidView(factory = { dock.view }, modifier = modifier.height(height), update = {
             if (source.updateTheme(context, effectiveDark)) dock.refreshAppearance()
-            dock.updateAccent(accent, neutral = style != null)
+            dock.updateAccent(accent, neutral = style?.weatherMaterial == true, foreground = style?.foreground)
             dock.select(selectedIndex.coerceIn(tabs.indices))
         })
     }
@@ -333,7 +325,7 @@ internal fun ColorOsHomeIconButton(
                 .getField("TYPE_DEFAULT_BLUR").getInt(null)
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(effect, materialType)
             NativeIconButton(view, sizedIcon, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
-                button.updateHomeStyle(style != null)
+                button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground)
                 source.bindFollowLightIntensity(view, effect)
                 view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                     override fun onViewAttachedToWindow(view: View) { view.post { button.refreshAppearance() } }
@@ -345,16 +337,17 @@ internal fun ColorOsHomeIconButton(
     val overflowEntries = LocalColorOsOverflowMenu.current
         ?.takeIf { iconRes == R.drawable.ic_more_horizontal }
     val menuEntries = rememberUpdatedState(overflowEntries?.value.orEmpty())
-    val menu = remember(button, overflowEntries != null, effectiveDark, style != null) {
+    val menu = remember(button, overflowEntries != null, effectiveDark, style) {
         if (overflowEntries == null) null else ColorOsNativeUi.prepare("create the native overflow menu") {
             // Popup parses its surface/text colors once in its constructor. A separate context
             // follows the same neutral theme and material as the home button.
-            NativeOverflowMenu(source, source.themedContext(host, effectiveDark), host, neutral = style != null)
+            NativeOverflowMenu(source, source.themedContext(host, effectiveDark), host,
+                neutral = style?.weatherMaterial == true, foreground = style?.foreground)
         }
     }
     key(context, iconRes) {
         AndroidView(factory = { button.view }, modifier = modifier, update = { view ->
-            button.updateHomeStyle(style != null)
+            button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground)
             if (source.updateTheme(context, effectiveDark)) button.refreshAppearance()
             view.contentDescription = contentDescription
             view.isSelected = selected
@@ -375,9 +368,11 @@ internal fun ColorOsHomeIconButton(
 private class NativeIconButton(val view: View, val icon: Drawable, val effect: Any, val detach: Method,
     private val source: ColorOsNativeUi.Source) {
     private var neutral = false
-    fun updateHomeStyle(wanted: Boolean) {
-        if (neutral == wanted) return
+    private var foreground: Int? = null
+    fun updateHomeStyle(wanted: Boolean, foreground: Int?) {
+        if (neutral == wanted && this.foreground == foreground) return
         neutral = wanted
+        this.foreground = foreground
         refreshAppearance()
     }
     fun refreshAppearance() {
@@ -386,8 +381,8 @@ private class NativeIconButton(val view: View, val icon: Drawable, val effect: A
         effect.javaClass.getMethod("setCustomBlurParams", source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
             .invoke(effect, params)
         icon.setTintList(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),
-            intArrayOf(source.color(view.context, if (neutral) "couiColorPrimaryNeutral" else "couiColorPrimary").defaultColor,
-                source.color(view.context, "couiColorLabelPrimary").defaultColor)))
+            intArrayOf(foreground ?: source.color(view.context, "couiColorPrimary").defaultColor,
+                foreground ?: source.color(view.context, "couiColorLabelPrimary").defaultColor)))
         val materialState = listOf("mMaterialType", "mIsDrawableMaterialEffect", "mBlurAllowed", "mBlurOn", "mStrokeAllowed", "mStrokeOn")
             .joinToString { name ->
                 val field = effect.javaClass.getDeclaredField(name).apply { isAccessible = true }

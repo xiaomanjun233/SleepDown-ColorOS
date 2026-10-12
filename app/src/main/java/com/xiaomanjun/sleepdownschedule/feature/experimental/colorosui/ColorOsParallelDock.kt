@@ -46,7 +46,8 @@ import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 
 private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView, val setClick: Method,
-    private val source: ColorOsNativeUi.Source, private var accent: Int, private var neutral: Boolean) {
+    private val source: ColorOsNativeUi.Source, private var accent: Int, private var neutral: Boolean,
+    private var foreground: Int?) {
     fun dispose() { setClick.invoke(root, null) }
 
     fun refreshAppearance() {
@@ -57,14 +58,16 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
 
     fun refreshMaterial() { updateAccent(accent, force = true) }
 
-    fun updateAccent(color: Int, neutral: Boolean = this.neutral, force: Boolean = false) {
-        if (!force && accent == color && this.neutral == neutral) return
+    fun updateAccent(color: Int, neutral: Boolean = this.neutral, foreground: Int? = this.foreground, force: Boolean = false) {
+        if (!force && accent == color && this.neutral == neutral && this.foreground == foreground) return
         accent = color
+        this.foreground = foreground
         val restorePreset = this.neutral && !neutral
         this.neutral = neutral
         if (restorePreset) root.javaClass.getMethod("onConfigurationChanged", android.content.res.Configuration::class.java)
             .invoke(root, root.context.resources.configuration)
-        icon.drawable?.setTintList(source.color(root.context, "couiColorOnPrimary"))
+        icon.drawable?.setTintList(foreground?.let(ColorStateList::valueOf)
+            ?: source.color(root.context, "couiColorOnPrimary"))
         root.javaClass.getMethod("setMainFloatingButtonBackgroundColor", ColorStateList::class.java)
             .invoke(root, ColorStateList.valueOf(color))
         applyMaterial()
@@ -88,7 +91,7 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
 
 private fun createNativeFab(
     source: ColorOsNativeUi.Source, context: Context, host: Context, accent: Int,
-    neutral: Boolean, onClick: (() -> Unit)?
+    neutral: Boolean, foreground: Int?, onClick: (() -> Unit)?
 ): NativeFab {
     val type = source.load(ColorOsNativeUi.FloatingButton)
     val root = type.getConstructor(Context::class.java).newInstance(context) as ViewGroup
@@ -110,7 +113,7 @@ private fun createNativeFab(
     icon.isFocusable = onClick != null
     root.clipChildren = false
     root.clipToPadding = false
-    return NativeFab(root, main, icon, setClick, source, accent, neutral).also { fab ->
+    return NativeFab(root, main, icon, setClick, source, accent, neutral, foreground).also { fab ->
         fab.updateAccent(accent, force = true)
         source.bindFollowLightIntensity(root, afterMaterialApplied = fab::refreshMaterial)
     }
@@ -126,12 +129,12 @@ internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier):
     val accent = dockAccent(native.first, native.second, LocalColorOsDockAccent.current)
     val fab = remember(native, host) {
         ColorOsNativeUi.prepare("create the native FAB return endpoint") {
-            createNativeFab(native.first, native.second, host, accent, style != null, null)
+            createNativeFab(native.first, native.second, host, accent, style?.weatherMaterial == true, style?.foreground, null)
         }
     } ?: return false
     key(native) { AndroidView(factory = { fab.root }, modifier = modifier, update = {
         if (native.first.updateTheme(native.second, effectiveDark)) fab.refreshAppearance()
-        fab.updateAccent(accent, neutral = style != null)
+        fab.updateAccent(accent, neutral = style?.weatherMaterial == true, foreground = style?.foreground)
     }) }
     DisposableEffect(fab) { onDispose { fab.dispose() } }
     return true
@@ -175,15 +178,15 @@ internal fun ColorOsParallelHomeDock(
     val returnLayer = rememberGraphicsLayer()
     val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
     val fabColor = accent
-    val returnRecorded = remember(native, effectiveDark, fabColor, density.density) { AtomicBoolean(false) }
+    val returnRecorded = remember(native, effectiveDark, fabColor, style, density.density) { AtomicBoolean(false) }
     val group = remember(native, host, composeRoot) {
         ColorOsNativeUi.prepare("create the native 3+1 dock") {
             val tabs = listOf(R.drawable.ic_day_view to "今日", R.drawable.ic_week_view to "课程表",
                 R.drawable.ic_settings to "设置")
             val dock = createNativeHomeDock(source, context, host, tabs, selectedIndex, accent,
-                neutral = style != null) { select.value(it) }
+                neutral = style?.weatherMaterial == true, foreground = style?.foreground) { select.value(it) }
             lateinit var fab: NativeFab
-            fab = createNativeFab(source, context, host, fabColor, style != null) {
+            fab = createNativeFab(source, context, host, fabColor, style?.weatherMaterial == true, style?.foreground) {
                 // A moving/partially merged source cannot also become the menu's fixed anchor.
                 if (canOpen.value && !dock.expansionMoving() && !dock.view.isLayoutRequested) {
                     val location = IntArray(2)
@@ -240,8 +243,8 @@ internal fun ColorOsParallelHomeDock(
                             group.dock.refreshAppearance()
                             group.fab.refreshAppearance()
                         }
-                        group.dock.updateAccent(accent, neutral = style != null)
-                        group.fab.updateAccent(fabColor, neutral = style != null)
+                        group.dock.updateAccent(accent, neutral = style?.weatherMaterial == true, foreground = style?.foreground)
+                        group.fab.updateAccent(fabColor, neutral = style?.weatherMaterial == true, foreground = style?.foreground)
                         group.dock.select(selectedIndex.coerceIn(0, 2))
                         group.expand(selectedIndex < 2, animate = true)
                         // Preserve COUI's overlap alpha on the main view while hiding the menu source.

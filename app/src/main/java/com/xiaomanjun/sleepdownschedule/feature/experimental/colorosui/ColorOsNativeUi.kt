@@ -107,8 +107,8 @@ internal object ColorOsNativeUi {
             setFollowLightIntensity(light)
         }
 
-        /** All follow lights use 2x native intensity; color and motion remain native. */
-        fun setFollowLightIntensity(light: Any) {
+        /** Scale the original range once; repeated material refreshes never compound it. */
+        fun setFollowLightIntensity(light: Any, multiplier: Float = 2f) {
             val shader = if (light.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffect") light
                 else light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light) ?: return
             val type = shader.javaClass
@@ -117,8 +117,8 @@ internal object ColorOsNativeUi {
             val previous = followLightRanges[shader]
             val range = if (previous != null && start == previous.appliedStart && end == previous.appliedEnd) previous
                 else LightRange(start, end, start, end).also { followLightRanges[shader] = it }
-            val targetStart = range.start * 2f
-            val targetEnd = range.end * 2f
+            val targetStart = range.start * multiplier
+            val targetEnd = range.end * multiplier
             if (start == targetStart && end == targetEnd) return
             light.javaClass.getMethod("setIntensityRange", Float::class.javaPrimitiveType,
                 Float::class.javaPrimitiveType).invoke(light, targetStart, targetEnd)
@@ -126,13 +126,13 @@ internal object ColorOsNativeUi {
             range.appliedEnd = targetEnd
         }
 
-        private fun boostFollowLights(root: View, delegate: Any?) {
+        private fun boostFollowLights(root: View, delegate: Any?, multiplier: Float) {
             val visited = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
             fun visit(owner: Any?) {
                 if (owner == null || !visited.add(owner)) return
                 if (owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable" ||
                     owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffect") {
-                    setFollowLightIntensity(owner)
+                    setFollowLightIntensity(owner, multiplier)
                     return
                 }
                 val fields = followLightFields.getOrPut(owner.javaClass) {
@@ -160,7 +160,8 @@ internal object ColorOsNativeUi {
         }
 
         /** One pass after attach/layout or material changes, never an animation-frame poll. */
-        fun bindFollowLightIntensity(root: View, delegate: Any? = null, afterMaterialApplied: (() -> Unit)? = null) {
+        fun bindFollowLightIntensity(root: View, delegate: Any? = null, multiplier: Float = 2f,
+            afterMaterialApplied: (() -> Unit)? = null) {
             val listenerType = load("com.coui.appcompat.OnMaterialStateChangeListener")
             var pending: ViewTreeObserver.OnPreDrawListener? = null
             var observer: ViewTreeObserver? = null
@@ -177,7 +178,7 @@ internal object ColorOsNativeUi {
                 pending = ViewTreeObserver.OnPreDrawListener {
                     cancelPending()
                     prepare("adjust native follow light intensity") {
-                        boostFollowLights(root, delegate)
+                        boostFollowLights(root, delegate, multiplier)
                         afterMaterialApplied?.invoke()
                     }
                     true

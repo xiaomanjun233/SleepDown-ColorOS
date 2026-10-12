@@ -1410,8 +1410,12 @@ fun CourseScheduleAppUi(
         )
     }
     val appDarkTheme = appUsesDarkTheme(visualState.config)
-    val homeNeutralChromeStyle = remember(appDarkTheme) {
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeChromeStyle(appDarkTheme)
+    val adaptiveGlassState = rememberFallbackAdaptiveGlassState(visualState.config)
+    val homeChromeHasWallpaper = visualState.config.hasAnyWallpaper()
+    val homeChromeForeground = adaptiveGlassState.contentColor.toArgb().takeIf { homeChromeHasWallpaper }
+    val homeNeutralChromeStyle = remember(appDarkTheme, homeChromeHasWallpaper, homeChromeForeground) {
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeChromeStyle(
+            appDarkTheme, homeChromeHasWallpaper, homeChromeForeground)
     }
     val statusBarWallpaperLuminance = remember(homeReadabilityContext) {
         homeStatusBarWallpaperLuminance(homeReadabilityContext)
@@ -1489,7 +1493,6 @@ fun CourseScheduleAppUi(
         }
     }
     val glassQuality = animatedGlassQuality(startupPhase)
-    val adaptiveGlassState = rememberFallbackAdaptiveGlassState(visualState.config)
     val homeAnchoredKindLabel = when (homeAnchoredMorphState.renderedKind) {
         HomeAnchoredOverlayKind.Add -> "AddMenu"
         HomeAnchoredOverlayKind.Personalize -> "Personalize"

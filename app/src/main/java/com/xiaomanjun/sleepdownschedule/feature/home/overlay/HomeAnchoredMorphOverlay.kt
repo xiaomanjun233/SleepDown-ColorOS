@@ -2578,7 +2578,7 @@ internal fun HomeAddMenuMorphPanel(
         if (homeStyle != null) config.copy(wallpaperUri = null) else config
     }
     val lightGlass = glassUsesLightStyle(menuConfig)
-    val textColor = glassForegroundColor(menuConfig)
+    val textColor = homeStyle?.foreground?.let { Color(it) } ?: glassForegroundColor(menuConfig)
     val showSurface by remember(retainSurface, surfaceAlphaProvider, backdrop) {
         derivedStateOf { retainSurface || backdrop == null || surfaceAlphaProvider() > 0.005f }
     }

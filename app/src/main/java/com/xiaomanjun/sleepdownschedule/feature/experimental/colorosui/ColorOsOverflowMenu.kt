@@ -1,11 +1,14 @@
 package com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.PopupWindow
+import android.widget.TextView
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.core.content.ContextCompat
@@ -15,7 +18,7 @@ import com.xiaomanjun.sleepdownschedule.app.ui.AddMenuAction
 internal val LocalColorOsOverflowMenu = compositionLocalOf<State<List<AddMenuAction>>?> { null }
 
 internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, private val context: Context,
-    private val host: Context, private val neutral: Boolean) {
+    private val host: Context, private val neutral: Boolean, private val foreground: Int?) {
     private val type = source.load("com.coui.appcompat.poplist.COUIPopupListWindow")
     private val itemType = source.load("com.coui.appcompat.poplist.PopupListItem")
     private val window = type.getConstructor(Context::class.java).newInstance(context) as PopupWindow
@@ -25,8 +28,9 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private val animationListenerType = source.load("${type.name}\$OnMainMenuAnimationListener")
 
     init {
-        source.bindFollowLightIntensity(window.contentView, afterMaterialApplied = {
+        source.bindFollowLightIntensity(window.contentView, multiplier = 3f, afterMaterialApplied = {
             if (neutral) applyButtonMaterial()
+            applyForeground(window.contentView)
         })
         type.getMethod("setUseBackgroundBlur", Boolean::class.javaPrimitiveType).invoke(window, true)
         // WindowManager resolves animation resources against our package, not the vendor APK.
@@ -54,6 +58,12 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
             override fun onViewAttachedToWindow(view: View) = Unit
             override fun onViewDetachedFromWindow(view: View) { anchor?.post { runPendingAction() } }
         })
+    }
+
+    private fun applyForeground(view: View) {
+        val color = foreground ?: return
+        if (view is TextView) view.setTextColor(color)
+        if (view is ViewGroup) for (index in 0 until view.childCount) applyForeground(view.getChildAt(index))
     }
 
     private fun applyButtonMaterial() {
@@ -92,7 +102,8 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
             Boolean::class.javaPrimitiveType)
         val items = entries.map { action ->
             val icon = action.iconRes?.let { ContextCompat.getDrawable(host, colorOsHomeIconResource(it))?.mutate() }
-            icon?.setTintList(source.color(context, "couiColorLabelPrimary"))
+            icon?.setTintList(foreground?.let(ColorStateList::valueOf)
+                ?: source.color(context, "couiColorLabelPrimary"))
             constructor.newInstance(icon, action.label, true)
         }
         type.getMethod("setItemList", List::class.java).invoke(window, items)

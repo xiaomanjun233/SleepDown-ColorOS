@@ -25,7 +25,11 @@ import com.xiaomanjun.sleepdownschedule.feature.agent.homeCountdownShockwave
 
 /** Weather uses COUI's neutral/transparent button material, independent of its sky colors. */
 @Immutable
-internal data class ColorOsHomeChromeStyle(val dark: Boolean)
+internal data class ColorOsHomeChromeStyle(
+    val dark: Boolean,
+    val weatherMaterial: Boolean,
+    val foreground: Int?
+)
 
 internal val LocalColorOsHomeChromeStyle = compositionLocalOf<ColorOsHomeChromeStyle?> { null }
 
