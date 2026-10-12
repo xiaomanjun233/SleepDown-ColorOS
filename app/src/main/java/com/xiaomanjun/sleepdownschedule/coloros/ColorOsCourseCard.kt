@@ -17,12 +17,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +38,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardMode
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
 import java.lang.reflect.Method
 
 private const val CourseMaterialPreference = "coloros_course_material"
@@ -102,33 +106,40 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
 @Composable
 internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Composable () -> Unit): Boolean {
     if (LocalNativeCourseCardMode.current?.enabled != true) return false
+    return ColorOsMaterialSurface(request, content)
+}
+
+/** Shared native backdrop for cards, table headers and assistant shells, with no input interception. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, content: @Composable () -> Unit): Boolean {
     val native = rememberNativeContext(request.dark) ?: return false
     val source = native.first
     val context = native.second
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val surface = remember(native) {
-        ColorOsNativeUi.prepare("create a course card material surface") { NativeCourseSurface(context, source) }
+        ColorOsNativeUi.prepare("create a material surface") { NativeMaterialSurface(context, source) }
     } ?: return false
-    val outlineProvider = remember(request.shape, density, direction) {
-        object : ViewOutlineProvider() {
-            override fun getOutline(view: View, target: AndroidOutline) {
-                when (val outline = request.shape.createOutline(Size(view.width.toFloat(), view.height.toFloat()), direction, density)) {
-                    is Outline.Rectangle -> target.setRect(0, 0, view.width, view.height)
-                    is Outline.Rounded -> target.setRoundRect(0, 0, view.width, view.height, outline.roundRect.topLeftCornerRadius.x)
-                    is Outline.Generic -> target.setPath(outline.path.asAndroidPath())
-                }
-            }
-        }
-    }
+    val latest = rememberUpdatedState(request)
     val interaction = remember { MutableInteractionSource() }
-    Box(request.modifier.clip(request.shape).motionEventSpy { surface.followTouch(it) }
+    Box(request.modifier.graphicsLayer {
+        val value = latest.value
+        shape = value.shapeProvider?.invoke() ?: value.shape
+        clip = true
+    }.motionEventSpy { surface.followTouch(it) }
         .then(if (request.onClick != null) Modifier.clickable(interaction, indication = null,
             role = Role.Button, onClick = request.onClick) else Modifier)) {
-        if (request.renderSurface) AndroidView(factory = { surface }, modifier = Modifier.matchParentSize(), update = {
+        if (request.renderSurface) AndroidView(factory = { surface }, modifier = Modifier.matchParentSize()
+            .graphicsLayer { alpha = latest.value.surfaceAlpha() }
+            .drawWithContent {
+                // Morph geometry is read in drawing, never used as a composition key.
+                val value = latest.value
+                surface.updateOutline(value.shapeProvider?.invoke() ?: value.shape, density, direction)
+                drawContent()
+            }, update = {
             source.updateTheme(context, request.dark)
-            it.outlineProvider = outlineProvider
-            it.invalidateOutline()
+            it.updateOutline(request.shape, density, direction)
             it.configure(request, density, direction)
         })
         content()
@@ -137,7 +148,7 @@ internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Compo
     return true
 }
 
-private class NativeCourseSurface(context: Context, private val source: ColorOsNativeUi.Source) : View(context) {
+private class NativeMaterialSurface(context: Context, private val source: ColorOsNativeUi.Source) : View(context) {
     private val effect = source.load(MaterialEffect)
     private val blurType = source.load(BlurType)
     private val strokeType = source.load(StrokeType)
@@ -151,7 +162,8 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
     private val tintDrawScope = CanvasDrawScope()
     private var tintDensity: Density = Density(1f)
     private var tintDirection = LayoutDirection.Ltr
-    private var request: NativeCourseCardRequest? = null
+    private var request: NativeMaterialSurfaceRequest? = null
+    private var surfaceShape: Shape? = null
     private var released = false
     private val stateListenerType = source.load("com.coui.appcompat.OnMaterialStateChangeListener")
     private val stateListener = source.listener(stateListenerType.name) { name, _ ->
@@ -161,6 +173,25 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
 
     init {
         clipToOutline = true
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, target: AndroidOutline) {
+                when (val outline = surfaceShape?.createOutline(
+                    Size(width.toFloat(), height.toFloat()), tintDirection, tintDensity)) {
+                    is Outline.Rectangle -> target.setRect(0, 0, width, height)
+                    is Outline.Rounded -> {
+                        val rect = outline.roundRect
+                        val corner = rect.topLeftCornerRadius
+                        if (corner.x == corner.y && corner == rect.topRightCornerRadius &&
+                            corner == rect.bottomLeftCornerRadius && corner == rect.bottomRightCornerRadius)
+                            target.setRoundRect(rect.left.toInt(), rect.top.toInt(),
+                            rect.right.toInt(), rect.bottom.toInt(), rect.topLeftCornerRadius.x)
+                        else target.setPath(androidx.compose.ui.graphics.Path().apply { addRoundRect(rect) }.asAndroidPath())
+                    }
+                    is Outline.Generic -> target.setPath(outline.path.asAndroidPath())
+                    null -> target.setEmpty()
+                }
+            }
+        }
         isClickable = false
         isFocusable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -171,7 +202,15 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
         source.setFollowLightIntensity(light)
     }
 
-    fun configure(value: NativeCourseCardRequest, density: Density, direction: LayoutDirection) {
+    fun updateOutline(shape: Shape, density: Density, direction: LayoutDirection) {
+        if (surfaceShape == shape && tintDensity == density && tintDirection == direction) return
+        surfaceShape = shape
+        tintDensity = density
+        tintDirection = direction
+        invalidateOutline()
+    }
+
+    fun configure(value: NativeMaterialSurfaceRequest, density: Density, direction: LayoutDirection) {
         if (request == value && tintDensity == density && tintDirection == direction) return
         request = value
         tintDensity = density
@@ -214,12 +253,18 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
         val value = request ?: return
         if (width <= 0 || height <= 0) return
         val blur = value.materialVisible && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
-        val stroke = value.materialVisible && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
-        val glow = value.materialVisible && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
+        val stroke = value.materialVisible && value.edgeEffects && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
+        val glow = value.materialVisible && value.edgeEffects && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
         // Keep the content-glass blur and course gradient; use the Dock's native edge/light
         // presets for stronger top/bottom highlights, without changing the card's outline.
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
+        if (blur && value.accent != null) {
+            effect.getMethod("setViewBlurEffect", View::class.java,
+                source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
+                .invoke(null, this, source.accentButtonBlurParams(context, value.accent))
+        } else {
+            setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
+        }
         setStroke.invoke(null, this, strokeType.getField(
             if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)

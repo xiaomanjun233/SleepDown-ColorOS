@@ -1,4 +1,6 @@
 package com.xiaomanjun.sleepdownschedule.glass.ui
+
+import androidx.compose.ui.graphics.toArgb
 import com.xiaomanjun.sleepdownschedule.glass.insetShapeFor
 import androidx.compose.ui.graphics.drawscope.inset
 
@@ -546,8 +548,21 @@ fun GlassSurface(
     placementLayer: Boolean = true,
     surfaceColorOverride: Color? = null,
     restShadowAlpha: Float = 0f,
+    nativeMaterial: Boolean = false,
+    nativeDark: Boolean? = null,
     content: @Composable () -> Unit
 ) {
+    if (nativeMaterial) {
+        val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+        if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+            modifier = modifier, shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
+            onClick = onClick,
+            shapeProvider = if (morphAllocation != null) {
+                { morphAllocation.envelope.insetShapeFor(morphAllocation.geometry()) }
+            } else shapeProvider,
+            edgeEffects = tokens.highlightAlpha > 0f || tokens.borderAlpha > 0f
+        ), content) == true) return
+    }
     val glassBackdrop = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) backdrop else null
     val useGlass = glassBackdrop != null
     val quality = LocalGlassQuality.current
@@ -1014,6 +1029,10 @@ fun BlueStatusGlassPill(
     content: @Composable () -> Unit
 ) {
     val shape = Capsule()
+    val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+    if (nativeSurface?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+        modifier = modifier, shape = shape, dark = !glassUsesLightStyle(config), accent = accentColor.toArgb()
+    ), content) == true) return
     Box(modifier = modifier) {
         GlassSurface(
             backdrop = backdrop,

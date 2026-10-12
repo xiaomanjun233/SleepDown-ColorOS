@@ -770,6 +770,7 @@ fun TodayAgentCard(
         // This is the one real glass shell. It is a sibling of the interactive content, so its
         // compact card-sized texture can safely feed the LiquidButtons without recursive capture.
         GlassSurface(
+            nativeMaterial = true,
             backdrop = backdrop,
             config = state.config,
             modifier = Modifier.matchParentSize(),
@@ -966,6 +967,7 @@ private fun AgentSimplePressSurface(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     GlassSurface(
+        nativeMaterial = true,
         backdrop = backdrop,
         config = config,
         modifier = modifier.clickable(
@@ -1933,6 +1935,7 @@ internal fun DayAgentConversationDialog(
             ) {
                 TopAssistantSurface(
                     backdrop, state.config, androidx.compose.ui.graphics.RectangleShape,
+                    nativeMaterial = true,
                     modifier = Modifier.matchParentSize(),
                     morphAllocation = homeSurfaceAllocation.takeUnless { homeFullScreenSettled },
                     shapeProvider = if (homeFullScreenSettled) null else ::homeShellShape,
@@ -1981,6 +1984,7 @@ internal fun DayAgentConversationDialog(
              ) {
                 if (!homePresentation) {
                 GlassSurface(
+                    nativeMaterial = true,
                     backdrop = backdrop,
                     config = state.config,
                     modifier = Modifier.matchParentSize(),
@@ -2818,33 +2822,17 @@ private fun AgentWindowIconButton(
     ) {
     val buttonSize = SleepDownDesignTokens.SecondaryPage.BackButtonSize
     val buttonModifier = Modifier.size(buttonSize)
-    if (backdrop != null) {
-        LiquidButton(
-            onClick = onClick,
-            backdrop = backdrop,
-            modifier = buttonModifier,
-            height = buttonSize,
-            clickTargetEnabled = false,
-            contentPadding = PaddingValues(0.dp),
-            shape = Capsule(),
-            blurRadius = 6.dp,
-            lensHeight = 12.dp,
-            lensAmount = 18.dp,
-            chromaticAberration = false,
-            surfaceColor = Color.White.copy(alpha = 0.10f),
-            tint = Color.White,
-            shadowEnabled = false
-        ) { glyph() }
-    } else {
         GlassSurface(
-            backdrop = null,
+            nativeMaterial = true,
+            nativeDark = true,
+            backdrop = backdrop,
             config = config,
             modifier = buttonModifier.clip(CircleShape),
             shape = Capsule(),
-            tokens = GlassTokens.dialog().copy(surfaceAlpha = 0.10f, shadowAlpha = 0f),
+            tokens = GlassTokens.dialog().copy(blur = 6.dp, lensHeight = 12.dp, lensAmount = 18.dp,
+                chromaticAberration = false, surfaceAlpha = 0.10f, shadowAlpha = 0f),
             baseSurfaceColorOverride = Color.White
         ) { glyph() }
-    }
     }
 }
 
@@ -2922,6 +2910,13 @@ private fun AgentInputLiquidCapsule(
     heightOverride: Dp? = null,
     content: @Composable () -> Unit
 ) {
+    val dockHeight = heightOverride ?: if (expanded) 94.dp else 56.dp
+    val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+    if (nativeSurface?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+        modifier = modifier.height(dockHeight), shape = shape, dark = foreground.luminance() > 0.5f,
+        surfaceAlpha = surfaceVisibility
+    )) { Box(Modifier.fillMaxSize()) { content() } } == true) return
+
     val interactionScope = rememberCoroutineScope()
     val currentInteractionEnabledAt = rememberUpdatedState(interactionEnabledAt)
     val interactiveHighlight = remember(interactionScope, sharedInteractiveHighlight) {
@@ -2931,7 +2926,6 @@ private fun AgentInputLiquidCapsule(
             acceptsGesture = { size, offset -> currentInteractionEnabledAt.value(size, offset) }
         )
     }
-    val dockHeight = heightOverride ?: if (expanded) 94.dp else 56.dp
     val pressExpansion = 1.5.dp
     val surfaceBase = if (com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance)
         com.xiaomanjun.sleepdownschedule.glass.flatControlColor(foreground.luminance() > 0.5f)
