@@ -14,7 +14,11 @@
 
 非选择器确认、错误、权限提示及中心编辑窗口接入 `COUIAlertDialogBuilder`；重命名使用原生输入框。按钮禁用、校验失败不关闭及编辑草稿的退出确认仍由业务决定，Dock 以外光色保持默认。日期、时间、数字、颜色及单选选择器继续沿用现有实现，详情见[中心弹窗接入](docs/reports/2026-10-12-coloros-centered-dialogs.md)。
 
-后续澄清将非选择器弹窗改为 COUI 默认构造，撤回强制居中和 Android framework Dialog 动画。原生菜单先完整收回，再以项目普通二级页面的 Depth 动画打开课程管理，返回也使用普通页面动画。右上角编辑/更多和菜单课程/周数图标复用 `HomeActionIcons` 的新版 Miuix 图形；设置保留原 Compose 齿轮。依据及新候选见[原样弹窗、菜单转场与项目图标](docs/reports/2026-10-12-coloros-default-dialog-transitions.md)。
+非选择器弹窗使用 COUI 默认构造，并按原库执行显示后初始化，接入窗口及按钮材质。原生菜单完整收回后，课程管理通过项目 Compose 详情页渲染器进入和返回。右上角菜单明暗跟随入口按钮，Dock 跟手光与选中态同色、峰值提亮至原值的 1.5 倍。新版项目图标与原 Compose 设置齿轮保留，见[生命周期及页面修复](docs/reports/2026-10-12-coloros-dialog-search-lifecycle.md)。
+
+个性化设置增加默认关闭的“ColorOS 17 凝光视效”课程卡片模式，保留课程配色，调用系统背景采样、光感描边与默认跟手光；文字和业务仍由 Compose 绘制。系统组件运行时从已安装系统应用加载，分析用系统 APK / DEX 不随安装包或源码分发。接口、实现与待验收范围见[课程凝光模式](docs/reports/2026-10-12-coloros-course-material.md)。
+
+原生 Dock 作为全屏背景模糊/缩放容器之外的同级消费者，避免加号菜单、中心弹层或课程快捷操作带动 Dock 形变。系统材质状态按应用真实配置统一更新，弹窗子内容不重复刷新全局控件，见[动画范围隔离](docs/reports/2026-10-12-coloros-animation-scope.md)。
 
 本地 `origin` 指向本仓库，`upstream` 指向原仓库。同步上游时先读取最新 `upstream/main`，在独立分支中合并并验证，避免覆盖本仓库的 ColorOS 改动。
 

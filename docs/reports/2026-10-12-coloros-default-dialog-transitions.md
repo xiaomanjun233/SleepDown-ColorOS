@@ -2,6 +2,8 @@
 
 用户澄清三个目标：原生菜单先收回再播放普通二级页面转场；右上角两个按钮和菜单使用项目上一轮的新版图标；此前非选择器中心弹窗直接替换成原样 COUI 弹窗，包括材质和动画，不再强行放到屏幕中央。三项改动分别提交。
 
+后续实机反馈弹窗材质及搜索展开仍有缺失；本报告中的窗口默认样式改动不代表材质验证通过。后续发现遗漏 Builder 的显示后初始化，同时用户要求课程管理使用项目 Compose 页面动效而非 Depth 窗口动画，见[生命周期及页面修复](2026-10-12-coloros-dialog-search-lifecycle.md)。下文保留当时候选状态。
+
 ## 菜单到页面
 
 旧原生入口使用 `HomeToCourseManagement` 且不传锚点。Legacy 后端将该 Anchored 路线的窗口动画关闭，而 `AnchoredDetailActivityMorph` 在 source bounds 为 null 时从完成态开始，所以页面直接出现。
