@@ -7097,7 +7097,7 @@ fun PersonalizePanel(
                             onSliderPreviewActiveChange = { key, active ->
                                 onSliderPreviewActiveChange(key, active)
                                 if (!active) material.onPreviewFinished()
-                            }, snapValue = 1f,
+                            }, snapValue = 0.5f,
                             onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
                         )
                     }
@@ -7138,8 +7138,8 @@ fun PersonalizePanel(
                     }
                 )
                 if (
-                    superPerformance || nativeMaterialActive || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
-                    !glassLocked)
+                    !nativeMaterialActive && (superPerformance || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
+                    !glassLocked))
                 ) {
                     val maxCourseCardBlur = courseCardBlurMaximum(state.config.courseCardGlassEnabled)
                     PersonalizeValueSlider(
@@ -7296,7 +7296,7 @@ fun PersonalizePanel(
                             .personalizePreviewVisibility(previewSliderKey, previewProgress)
                     )
                 }
-                if ((nativeMaterialActive || state.config.courseCardGlassEnabled) && !glassLocked) {
+                if (!nativeMaterialActive && state.config.courseCardGlassEnabled && !glassLocked) {
                     Row(
                         modifier = Modifier.rowEntrance(15 + weekContentRows)
                             .fillMaxWidth()
@@ -7305,7 +7305,7 @@ fun PersonalizePanel(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (nativeMaterialActive) "轮廓光" else "质感轮廓光", style = MaterialTheme.typography.labelLarge)
+                        Text("质感轮廓光", style = MaterialTheme.typography.labelLarge)
                         LiquidControlToggle(
                             checked = state.config.courseCardOutlineLightEnabled,
                             compact = true,
@@ -7318,7 +7318,7 @@ fun PersonalizePanel(
                             backdrop = backdrop
                         )
                     }
-                } else {
+                } else if (!nativeMaterialActive) {
                     Row(
                         modifier = Modifier.rowEntrance(15 + weekContentRows)
                             .fillMaxWidth()

@@ -1092,14 +1092,8 @@ fun CourseGlassCard(
     val nativeMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
     if (nativeMode?.enabled == true) {
         val base = if (muted) MutedCourseLightColor else courseCardBaseColor(config, course)
-        val outline = muted || config.courseCardOutlineLightEnabled
-        val brightness = if (outline) courseCardBrightnessAttenuation(config.wallpaperBrightness, true) else 1f
-        val alpha = courseGlassTintAlpha(if (outline) 0.75f else previewState?.cardAlpha ?: config.cardAlpha,
-            1f, config.hasAnyWallpaper()) * brightness * nativeMode.tintStrength
-        val blurPx = with(androidx.compose.ui.platform.LocalDensity.current) {
-            (blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur).dp.toPx()
-        }
-        val tintDraw: (DrawScope.() -> Unit)? = if (outline) remember(base, alpha, expandedOutlineLight) {
+        val alpha = nativeMode.tintStrength
+        val tintDraw: DrawScope.() -> Unit = remember(base, alpha, expandedOutlineLight) {
             var height = Float.NaN
             var brush: Brush? = null
             val draw: DrawScope.() -> Unit = {
@@ -1113,7 +1107,7 @@ fun CourseGlassCard(
                 drawRect(requireNotNull(brush))
             }
             draw
-        } else null
+        }
         val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
         val cardBounds = remember { {
             coordinates[0]?.takeIf { it.isAttached }?.let { position ->
@@ -1121,12 +1115,12 @@ fun CourseGlassCard(
                 Rect(origin.x, origin.y, origin.x + position.size.width, origin.y + position.size.height)
             }
         } }
-        val background = rememberCourseTextBackground(base, alpha, true, blurPx, outline, expandedOutlineLight,
+        val background = rememberCourseTextBackground(base, alpha, true, nativeMode.blurRadiusPx, true, expandedOutlineLight,
             flatBackground = homeFlatBackgroundColor(appUsesDarkTheme(config)).takeUnless { config.hasAnyWallpaper() },
             ready = true, cardBounds = cardBounds)
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
-                modifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config), base, alpha, blurPx,
+                modifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config),
                 renderSurface, drawMaterialNodes, onClick, tintDraw
             )) {
                 CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }

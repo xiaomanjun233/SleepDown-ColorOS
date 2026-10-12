@@ -2,7 +2,6 @@ package com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Outline as AndroidOutline
 import android.graphics.drawable.Drawable
@@ -25,7 +24,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -43,6 +41,8 @@ private const val CourseMaterialPreference = "coloros_course_material"
 private const val CourseMaterialEnabled = "enabled"
 private const val CourseTintStrength = "tint_strength"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
+private const val BlurType = "com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType"
+private const val CourseBlurPreset = "TYPE_CONTENT_TRANSPARENT_BUTTON"
 private const val StrokeType = "com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType"
 private const val LightDrawable = "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable"
 private const val LightType = "com.coui.appcompat.spotlight.COUISpotLightEffect\$SpotLightType"
@@ -63,11 +63,19 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
     if (!available) return null
     val preferences = remember(host) { host.getSharedPreferences(CourseMaterialPreference, Context.MODE_PRIVATE) }
     var enabled by remember(preferences) { mutableStateOf(preferences.getBoolean(CourseMaterialEnabled, false)) }
-    var tint by remember(preferences) { mutableFloatStateOf(preferences.getFloat(CourseTintStrength, 1f)) }
+    var tint by remember(preferences) { mutableFloatStateOf(preferences.getFloat(CourseTintStrength, 0.5f)) }
+    val blurRadius = remember(source) {
+        val context = source.themedContext(host, false)
+        val type = source.load(BlurType)
+        val params = source.load(MaterialEffect).getMethod("getBlurParamsByType", Context::class.java, type)
+            .invoke(null, context, type.getField(CourseBlurPreset).get(null))
+        source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
+            .getMethod("getBlurRadius", Context::class.java).invoke(params, context) as Float
+    }
     DisposableEffect(preferences) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             if (key == CourseMaterialEnabled) enabled = prefs.getBoolean(key, false)
-            if (key == CourseTintStrength) tint = prefs.getFloat(key, 1f)
+            if (key == CourseTintStrength) tint = prefs.getFloat(key, 0.5f)
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -75,12 +83,13 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
     return NativeCourseCardMode(enabled,
         onEnabledChange = { preferences.edit().putBoolean(CourseMaterialEnabled, it).apply() },
         tintStrength = tint,
+        blurRadiusPx = blurRadius,
         onTintStrengthChange = { value, commit ->
             tint = value.coerceIn(0f, 1f)
             if (commit) preferences.edit().putFloat(CourseTintStrength, tint).apply()
         },
         onPreviewFinished = {
-            tint = preferences.getFloat(CourseTintStrength, 1f)
+            tint = preferences.getFloat(CourseTintStrength, 0.5f)
         })
 }
 
@@ -126,10 +135,9 @@ internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Compo
 
 private class NativeCourseSurface(context: Context, private val source: ColorOsNativeUi.Source) : View(context) {
     private val effect = source.load(MaterialEffect)
-    private val blurParamsType = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectParams")
-    private val baseParamsType = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
+    private val blurType = source.load(BlurType)
     private val strokeType = source.load(StrokeType)
-    private val setBlur = effect.getMethod("setViewBlurEffect", View::class.java, baseParamsType)
+    private val setBlur = effect.getMethod("setViewBlurEffect", View::class.java, blurType)
     private val setStroke = effect.getMethod("setViewStrokeEffect", View::class.java, strokeType)
     private val managerType = source.load("com.coui.appcompat.COUIMaterialStateManager")
     private val manager = managerType.getField("INSTANCE").get(null)
@@ -156,7 +164,6 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
             .invoke(light, context, type.getField("TYPE_TRANSLUCENT_LARGE_1").get(null))
-        source.setFollowLightIntensity(light)
     }
 
     fun configure(value: NativeCourseCardRequest, density: Density, direction: LayoutDirection) {
@@ -201,29 +208,16 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
     private fun applyMaterial() {
         val value = request ?: return
         if (width <= 0 || height <= 0) return
-        val blur = value.materialVisible && value.blurRadiusPx > 0f && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
+        val blur = value.materialVisible && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
         val stroke = value.materialVisible && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
         val glow = value.materialVisible && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
-        if (blur) {
-            // Native two-layer material retains course tint, using the system background sampler.
-            val tint = if (value.onDrawTint != null) android.graphics.Color.TRANSPARENT
-                else value.color.copy(alpha = value.tintAlpha).toArgb()
-            val params = blurParamsType.getConstructor(Float::class.javaPrimitiveType, String::class.java,
-                BlendMode::class.java, String::class.java, BlendMode::class.java)
-                .newInstance(value.blurRadiusPx.coerceAtLeast(1f), "#00000000", BlendMode.SRC_OVER,
-                    "#" + Integer.toHexString(tint).padStart(8, '0'), BlendMode.SRC_OVER)
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            setBlur.invoke(null, this, params)
-        } else {
-            clearBlur()
-            setBackgroundColor(if (value.onDrawTint != null) android.graphics.Color.TRANSPARENT
-                else value.color.copy(alpha = value.tintAlpha).toArgb())
-        }
-        // Restore the first version's native preset and shape clipping; retain course gradient only.
+        // Native content-glass defaults own blur, color filters and highlights. The only
+        // application paint is the course gradient in onDraw, independent of legacy settings.
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
         setStroke.invoke(null, this, strokeType.getField(
             if (stroke) "TYPE_CONTENT_CAPSULE_1" else "TYPE_NO_EFFECT").get(null))
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
-        source.setFollowLightIntensity(light)
         invalidate()
     }
 
