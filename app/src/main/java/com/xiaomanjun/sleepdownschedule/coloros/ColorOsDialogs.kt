@@ -185,16 +185,18 @@ private class NativeAlert(
             .apply { isAccessible = true }.invoke(builder, dialog)
         builder.javaClass.getMethod("updateViewAfterShown").invoke(builder)
         val primaryIndex = request().actions.indexOfFirst { it.style == LiquidAlertActionStyle.Primary }
-        if (primaryIndex >= 0) {
+        if (slots.isNotEmpty()) {
             val primary = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
-                .invoke(dialog, slots[primaryIndex]) as TextView
+                .invoke(dialog, slots[primaryIndex.coerceAtLeast(0)]) as TextView
             val barType = source.load("com.coui.appcompat.buttonBar.COUIButtonBarLayout")
             val bar = requireNotNull(generateSequence(primary.parent) { it.parent }.firstOrNull(barType::isInstance))
             val buttonType = source.load("com.coui.appcompat.button.COUIButton\$ButtonType")
             // Three-action alerts put Primary in the first (neutral) slot. Keep COUI's own
             // recommendation identity aligned too, so later material refreshes use that slot.
-            barType.getMethod("setRecommendButtonId", Int::class.javaPrimitiveType).invoke(bar, primary.id)
-            barType.getMethod("setRecommendButtonType", buttonType).invoke(bar, buttonType.getField("PRIMARY").get(null))
+            barType.getMethod("setRecommendButtonId", Int::class.javaPrimitiveType)
+                .invoke(bar, if (primaryIndex >= 0) primary.id else View.NO_ID)
+            barType.getMethod("setRecommendButtonType", buttonType).invoke(bar,
+                buttonType.getField(if (primaryIndex >= 0) "PRIMARY" else "SECONDARY").get(null))
         }
         request().actions.forEachIndexed { index, action ->
             val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)

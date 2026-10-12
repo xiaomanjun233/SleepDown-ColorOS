@@ -4223,7 +4223,7 @@ fun CourseScheduleAppUi(
             title = "启用每日免费 AI？",
             message = "SleepDown 为尚未配置模型服务的用户提供每日免费 AI 额度，可用于 AI 助理、AI 对话和 AI 教务导入。固定使用 gpt-5.6-luna 与 Responses 接口，可随时在 AI 设置中切换或关闭。",
             actions = listOf(
-                LiquidAlertAction("暂不启用", LiquidAlertActionStyle.Secondary) {
+                LiquidAlertAction("暂不启用", LiquidAlertActionStyle.Cancel) {
                     AiImportSettingsStore.declineManagedFreeAi(context)
                     showManagedFreeAiOffer = false
                 },
@@ -4292,7 +4292,7 @@ fun CourseScheduleAppUi(
                     append("停课当天的课程会保留为灰色卡片，补课日按原课程日期上课。")
                 },
                 actions = listOf(
-                    LiquidAlertAction("稍后再说", LiquidAlertActionStyle.Secondary) {
+                    LiquidAlertAction("稍后再说", LiquidAlertActionStyle.Cancel) {
                         upcomingHoliday = null
                     },
                     LiquidAlertAction("去设置", LiquidAlertActionStyle.Primary) {
@@ -9067,7 +9067,7 @@ private fun SettingsUpdateDialogHost(
                 title = "发现新版本 ${release.name}",
                 message = "$notes\n\n当前将从 Gitee 下载 APK，安装前仍会由系统向你确认。",
                 actions = listOf(
-                    LiquidAlertAction("稍后", LiquidAlertActionStyle.Secondary, onClick = onDismiss),
+                    LiquidAlertAction("稍后", LiquidAlertActionStyle.Cancel, onClick = onDismiss),
                     LiquidAlertAction("下载并安装", LiquidAlertActionStyle.Primary) { onDownload(release) }
                 ),
                 backdrop = backdrop,

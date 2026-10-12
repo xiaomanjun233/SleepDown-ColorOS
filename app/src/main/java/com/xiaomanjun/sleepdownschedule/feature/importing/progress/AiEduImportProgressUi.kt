@@ -864,7 +864,7 @@ private fun AiEduCaptureConfirmation(
                 },
                 LiquidAlertAction(
                     progress.cancelActionLabel.ifBlank { "返回重抓" },
-                    LiquidAlertActionStyle.Secondary,
+                    LiquidAlertActionStyle.Cancel,
                     onClick = AiEduImportProgressSession::cancel
                 )
             )
@@ -895,7 +895,7 @@ private fun AiEduCaptureConfirmation(
                     },
                 LiquidAlertAction(
                     progress.cancelActionLabel.ifBlank { "返回重抓" },
-                    LiquidAlertActionStyle.Secondary,
+                    LiquidAlertActionStyle.Cancel,
                     onClick = AiEduImportProgressSession::cancel
                 )
             )

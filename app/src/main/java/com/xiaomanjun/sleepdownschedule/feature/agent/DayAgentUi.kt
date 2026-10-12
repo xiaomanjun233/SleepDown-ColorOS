@@ -409,7 +409,7 @@ fun TodayAgentHost(
             title = "启用 AI 助理？",
             message = "AI 助理会在日视图显示下一节课、实时倒计时与天气。课程和倒计时均在本地计算；绑定 API Key 后，点击卡片可以继续对话。你可以随时在 AI 助理设置中关闭。",
             actions = listOf(
-                LiquidAlertAction("暂不启用", LiquidAlertActionStyle.Secondary) {
+                LiquidAlertAction("暂不启用", LiquidAlertActionStyle.Cancel) {
                     DayAgentPreferences.setEnabled(context, false)
                     enabled = false
                     hasDecision = true
