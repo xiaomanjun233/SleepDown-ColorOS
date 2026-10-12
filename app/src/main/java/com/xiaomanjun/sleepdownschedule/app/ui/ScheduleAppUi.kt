@@ -3180,6 +3180,12 @@ fun CourseScheduleAppUi(
     // Capture the complete page, including its native Dock, at full size before the outer
     // shortcut blur downsamples it. Native material corners must not first render into the
     // reduced blur pass. Keep inputs outside course-only locals to avoid native recomposition.
+    // The Compose fallback captures backdrop/config state that the native Dock never uses.
+    // Keep that changing closure behind State, so it cannot invalidate the native host.
+    val nativeDockFallback = rememberUpdatedState<@Composable () -> Unit> {
+        HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
+            chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
+    }
     if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.coloros.NativeHomeDockChrome(
         visible = dockVisible,
         parallel = parallelPhoneNavigation,
@@ -3191,10 +3197,7 @@ fun CourseScheduleAppUi(
         onHome = ordinaryDockHome,
         onOpenMenu = dockOpenMenu,
         phase = startupPhase,
-        fallback = {
-            HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
-                chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
-        },
+        fallback = nativeDockFallback,
         modifier = Modifier.align(Alignment.BottomStart)
     )
     } // end cached page content, including native Dock

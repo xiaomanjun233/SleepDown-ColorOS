@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -76,7 +77,7 @@ internal fun NativeHomeDockChrome(
     visible: Boolean, parallel: Boolean, selectedIndex: Int, dark: Boolean,
     alignment: DockAlignment, buttonHidden: Boolean,
     onSelect: (Int) -> Unit, onHome: () -> Unit, onOpenMenu: (Rect, GraphicsLayer) -> Unit,
-    fallback: @Composable () -> Unit,
+    fallback: State<@Composable () -> Unit>,
     phase: StartupPhase,
     modifier: Modifier = Modifier
 ) {
@@ -86,7 +87,7 @@ internal fun NativeHomeDockChrome(
     val restingModifier = modifier.homeCountdownShockwave(0.85f)
     DockEntranceContainer(phase, restingModifier) {
     if (parallel) {
-        if (!ColorOsParallelHomeDock(selectedIndex, dark, buttonHidden, Modifier, onSelect, onOpenMenu)) fallback()
+        if (!ColorOsParallelHomeDock(selectedIndex, dark, buttonHidden, Modifier, onSelect, onOpenMenu)) NativeDockFallback(fallback)
     } else {
         val density = LocalDensity.current
         val systemBottom = WindowInsets.navigationBarsIgnoringVisibility.only(WindowInsetsSides.Bottom).getBottom(density)
@@ -103,9 +104,12 @@ internal fun NativeHomeDockChrome(
             Box(Modifier.padding(start = 18.dp, end = 18.dp, bottom = bottom)
                 .graphicsLayer { translationY = compensation.toFloat() }) {
                 if (!ColorOsHomeDock(tabs, if (selectedIndex == 2) 1 else 0, dark,
-                        Modifier.width(colorOsOrdinaryDockWidth()), click)) fallback()
+                        Modifier.width(colorOsOrdinaryDockWidth()), click)) NativeDockFallback(fallback)
             }
         }
     }
     }
 }
+
+@Composable
+private fun NativeDockFallback(content: State<@Composable () -> Unit>) { content.value() }

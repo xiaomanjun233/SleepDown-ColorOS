@@ -12,6 +12,8 @@ import android.widget.TextView
 import android.widget.ImageView
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import com.xiaomanjun.sleepdownschedule.app.ui.AddMenuAction
 
@@ -19,13 +21,16 @@ import com.xiaomanjun.sleepdownschedule.app.ui.AddMenuAction
 internal val LocalColorOsOverflowMenu = compositionLocalOf<State<List<AddMenuAction>>?> { null }
 
 internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, private val context: Context,
-    private val host: Context, private val neutral: Boolean, private val foreground: Int?) {
+    private val host: Context, private val neutral: Boolean, private val foreground: Int?,
+    private val onDismiss: (() -> Unit)? = null) {
     private val type = source.load("com.coui.appcompat.poplist.COUIPopupListWindow")
     private val itemType = source.load("com.coui.appcompat.poplist.PopupListItem")
     private val window = type.getConstructor(Context::class.java).newInstance(context) as PopupWindow
     private var actions: List<AddMenuAction> = emptyList()
     private var pending: (() -> Unit)? = null
     private var anchor: View? = null
+    private var dismissed = true
+    private var dismissWaiter: (() -> Unit)? = null
     private val animationListenerType = source.load("${type.name}\$OnMainMenuAnimationListener")
 
     init {
@@ -37,6 +42,7 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
         // WindowManager resolves animation resources against our package, not the vendor APK.
         // The menu root already owns COUI's enter/exit springs; avoid a second window animation.
         window.animationStyle = 0
+        window.setOnDismissListener { anchor?.post { runPendingAction() } }
         type.getMethod("setMenuWidth", Int::class.javaPrimitiveType).invoke(window,
             context.resources.getDimensionPixelSize(source.resource("coui_popup_list_window_width_with_icon", "dimen")))
         type.getMethod("setMenuMaxWidth", Int::class.javaPrimitiveType).invoke(window,
@@ -61,20 +67,24 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
         })
     }
 
-    private fun applyForeground(view: View) {
-        val color = foreground ?: return
+    private fun applyForeground(view: View, textColor: Int? = foreground, iconColor: Int? = textColor) {
         if (view is TextView) {
-            view.setTextColor(color)
-            view.compoundDrawablesRelative.forEach { it?.mutate()?.setTint(color) }
+            textColor?.let(view::setTextColor)
+            iconColor?.let { color -> view.compoundDrawablesRelative.forEach { it?.mutate()?.setTint(color) } }
         }
         // COUI's adapter applies an ImageView tint after binding the supplied drawable.
         // Override that tint as well, after the native menu has attached and laid out.
-        if (view is ImageView) {
+        if (view is ImageView && iconColor != null) {
             view.clearColorFilter()
-            view.imageTintList = ColorStateList.valueOf(color)
-            view.drawable?.mutate()?.setTint(color)
+            view.imageTintList = ColorStateList.valueOf(iconColor)
+            view.drawable?.mutate()?.setTint(iconColor)
         }
-        if (view is ViewGroup) for (index in 0 until view.childCount) applyForeground(view.getChildAt(index))
+        if (view is ViewGroup) for (index in 0 until view.childCount) {
+            val child = view.getChildAt(index)
+            val action = if (view is AdapterView<*>) actions.getOrNull(view.getPositionForView(child)) else null
+            applyForeground(child, action?.textTint?.takeIf { it.isSpecified }?.toArgb() ?: textColor,
+                action?.iconTint?.takeIf { it.isSpecified }?.toArgb() ?: iconColor)
+        }
     }
 
     private fun applyButtonMaterial() {
@@ -108,12 +118,14 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
         // COUI's isShowing() becomes false at the start of exit, while its root is still attached.
         if (window.isShowing || window.contentView.isAttachedToWindow || pending != null || entries.isEmpty()) return
         this.anchor = anchor
+        dismissed = false
         actions = entries
         val constructor = itemType.getConstructor(Drawable::class.java, String::class.java,
             Boolean::class.javaPrimitiveType)
         val items = entries.map { action ->
             val icon = action.iconRes?.let { ContextCompat.getDrawable(host, colorOsHomeIconResource(it))?.mutate() }
-            icon?.setTintList(foreground?.let(ColorStateList::valueOf)
+            icon?.setTintList(action.iconTint?.takeIf { it.isSpecified }?.toArgb()?.let(ColorStateList::valueOf)
+                ?: foreground?.let(ColorStateList::valueOf)
                 ?: source.color(context, "couiColorLabelPrimary"))
             constructor.newInstance(icon, action.label, true)
         }
@@ -122,13 +134,29 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     }
 
     private fun runPendingAction() {
+        if (dismissed) return
+        dismissed = true
         val action = pending
         pending = null
-        if (anchor?.isAttachedToWindow == true) action?.invoke()
+        val waiter = dismissWaiter
+        dismissWaiter = null
+        waiter?.invoke()
+        if (anchor?.isAttachedToWindow == true) {
+            if (action != null) action() else onDismiss?.invoke()
+        }
+    }
+
+    fun dismiss(afterDismiss: () -> Unit) {
+        if (dismissed) { afterDismiss(); return }
+        dismissWaiter = afterDismiss
+        window.dismiss()
     }
 
     fun dispose() {
         pending = null
+        dismissed = true
+        dismissWaiter?.invoke()
+        dismissWaiter = null
         type.getMethod("setOnMainMenuAnimationListener", animationListenerType).invoke(window, null)
         type.getMethod("forceDismiss").invoke(window)
         anchor = null
