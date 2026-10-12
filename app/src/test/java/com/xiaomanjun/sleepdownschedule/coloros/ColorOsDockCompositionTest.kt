@@ -5,8 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -15,6 +17,10 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
 import com.xiaomanjun.sleepdownschedule.DockAlignment
 import com.xiaomanjun.sleepdownschedule.core.performance.StartupPhase
+import com.xiaomanjun.sleepdownschedule.glass.GlassBackdropDomain
+import com.xiaomanjun.sleepdownschedule.glass.LocalSharedCourseBackdrop
+import com.xiaomanjun.sleepdownschedule.glass.rememberGlassLayerBackdrop
+import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -59,4 +65,41 @@ class ColorOsDockCompositionTest {
         assertEquals("The fallback must still receive fresh state", 12, renderedFallbackRevision)
         assertEquals("Background-only changes must not commit the native Dock host", initial, commits())
     }
+
+    @Test fun previewingCourseBlurUpdatesConsumersWithoutCommittingDock() {
+        val radius = mutableIntStateOf(4)
+        var receivedRadius = -1f
+        val select: (Int) -> Unit = {}
+        val home: () -> Unit = {}
+        val menu: (Rect, GraphicsLayer) -> Unit = { _, _ -> }
+        val receive: (Float) -> Unit = { receivedRadius = it }
+        ShadowLog.clear()
+        compose.setContent {
+            val source = rememberGlassLayerBackdrop(GlassBackdropDomain.Content, "course-preview-test")
+            val pixels = radius.intValue.toFloat()
+            val shared = remember(source, pixels) { SharedBlurBackdrop(source, pixels, false) }
+            val fallback = rememberUpdatedState<@Composable () -> Unit> { Box(Modifier.size(64.dp)) }
+            CompositionLocalProvider(LocalSharedCourseBackdrop provides shared) {
+                CourseSamplerConsumer(receive)
+                NativeHomeDockChrome(true, true, 1, false, DockAlignment.CENTER, false,
+                    select, home, menu, fallback, StartupPhase.FullQuality)
+            }
+        }
+        compose.waitForIdle()
+        fun commits() = ShadowLog.getLogsForTag("SleepDownCOUI").count { it.msg.startsWith("Native dock commit:") }
+        val initial = commits()
+        assertTrue(initial > 0)
+        for (value in 5..16) {
+            compose.runOnIdle { radius.intValue = value }
+            compose.waitForIdle()
+        }
+        assertEquals("Course consumers must receive the live preview", 16f, receivedRadius, 0f)
+        assertEquals("The course provider must not invalidate the native Dock", initial, commits())
+    }
+}
+
+@Composable
+private fun CourseSamplerConsumer(receive: (Float) -> Unit) {
+    val sampler = LocalSharedCourseBackdrop.current
+    SideEffect { receive(requireNotNull(sampler).radiusPx) }
 }
