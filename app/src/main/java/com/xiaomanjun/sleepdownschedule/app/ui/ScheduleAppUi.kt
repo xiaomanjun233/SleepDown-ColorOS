@@ -3520,10 +3520,11 @@ fun CourseScheduleAppUi(
 
     val latestNativeCourseManagement = rememberUpdatedState<() -> Unit> {
         val activity = context.findActivity()
-        if (activity != null && !activity.isFinishing) appScope.launch {
-            // Native-capable routes require the suspending coordinator even without an anchor.
-            ActivityTransitionCoordinator.open(activity, TransitionRouteId.HomeToCourseManagement,
-                Intent(context, CourseManagementActivity::class.java).putCourseManagementInitialState(state))
+        if (activity != null && !activity.isFinishing) {
+            // NativeOverflowMenu invokes this only after COUI has finished retracting its window.
+            ActivityTransitionCoordinator.openImmediate(activity, TransitionRouteId.HomeMenuToCourseManagement,
+                Intent(context, com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsCourseManagementActivity::class.java)
+                    .putCourseManagementInitialState(state))
         }
     }
     val nativeOverflowActions = remember(homeAddActions) {

@@ -65,6 +65,8 @@ ActivityTransitionCoordinator.requestClose(this, intent)
 - 进程重建找不到 payload 时，目的页直接显示稳定真实内容，返回使用平台行为。
 - Home → 课程管理允许打开锚点为一级菜单外壳、返回锚点为真实三点按钮。
 
+ColorOS 原生三点菜单另走 `HomeMenuToCourseManagement`：菜单完成原生退出后打开不透明的 `ColorOsCourseManagementActivity`，业务复用原课程管理页，动画使用现有 `schedule_depth_*` 普通页面资源；进入和返回均无需菜单锚点。原来的 `HomeToCourseManagement` 及其 Morph 参数保持现状。Depth 路线由协调器在目的 Activity 创建前登记 API 34+ 的开合动画，旧版本仍用 `overridePendingTransition`；目的容器直接呈现稳定页面，关闭不再被 Anchored Morph 的零动画覆盖。实现与验证见[原样弹窗及菜单转场](reports/2026-10-12-coloros-default-dialog-transitions.md)。
+
 ## Oplus 启用策略
 
 生产环境默认全部使用 Legacy。只有全局开关和逐路线 allowlist 同时开启，且运行时能力、窗口形态、源锚点、软件快照和 opaque 目标窗口均通过检查时，才尝试 ViewSeamless。
