@@ -5054,6 +5054,8 @@ fun HomeTopGradientBlur(
     fullBlurHeight: Dp = 0.dp
 ) {
     val lightGlass = glassUsesLightStyle(config)
+    val nativeGradient = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeTopGradientBlurRenderer.current
+    if (nativeGradient?.invoke(modifier.fillMaxWidth().height(height), !lightGlass) == true) return
     val tintColor = if (lightGlass) HomeLightGlassGradientColor else ComposeColor(0xFF111111)
     Box(modifier = modifier) {
         ProgressiveBackdropBlur(
