@@ -10,7 +10,7 @@
 | 按用户任务查功能与实现入口 | [FEATURE_MAP.md](FEATURE_MAP.md) |
 | 目录、依赖与结构调整 | [PROJECT_STRUCTURE.md](architecture/PROJECT_STRUCTURE.md) |
 | 页面、弹窗、选择器与公共控件 | [SLEEPDOWN_DESIGN_SYSTEM.md](architecture/SLEEPDOWN_DESIGN_SYSTEM.md) |
-| ColorOS 派生控件、材质与原生弹窗 | [首页中性色及菜单](reports/2026-10-12-coloros-home-neutral.md)、[生命周期及页面修复](reports/2026-10-12-coloros-dialog-search-lifecycle.md)、[课程凝光模式](reports/2026-10-12-coloros-course-material.md) |
+| ColorOS 派生控件、材质与原生弹窗 | [Dock 可读性与课程回退](reports/2026-10-12-coloros-dock-contrast.md)、[首页中性色及菜单](reports/2026-10-12-coloros-home-neutral.md)、[生命周期及页面修复](reports/2026-10-12-coloros-dialog-search-lifecycle.md)、[课程凝光模式](reports/2026-10-12-coloros-course-material.md) |
 | 玻璃采样、渲染和生命周期 | [LIQUID_GLASS_FRAMEWORK.md](performance/LIQUID_GLASS_FRAMEWORK.md) |
 | 跨 Activity 转场 | [TRANSITION_FRAMEWORK.md](TRANSITION_FRAMEWORK.md) |
 | AI 文件导入 | [AI_FILE_IMPORT.md](ai/AI_FILE_IMPORT.md) |

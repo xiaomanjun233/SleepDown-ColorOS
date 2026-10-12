@@ -47,22 +47,17 @@ internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, ra
             base.getMethod("getBlendModeLayer2").invoke(preset))
 }
 
-internal fun ColorOsNativeUi.Source.weatherFabBlurParams(context: Context): Any {
+internal fun ColorOsNativeUi.Source.homeFabBlurParams(context: Context, fabPreset: Any): Any {
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
-    val themeEffect = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect")
-    val themeType = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect\$ThemeBlurEffectType")
-    val fabPreset = themeEffect.getMethod("getBlurEffectParamsByType", Context::class.java, themeType)
-        .invoke(null, context, themeType.getField("TYPE_FRAMEWORK_FAB").get(null))
     val radius = base.getMethod("getBlurRadius", Context::class.java).invoke(fabPreset, context) as Float
-    val tint = weatherButtonBlurParams(context)
     val themeParams = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect\$Companion\$ThemeBlurEffectParams")
     return themeParams.getConstructor(Float::class.javaPrimitiveType, Int::class.javaPrimitiveType,
         Boolean::class.javaPrimitiveType, BlendMode::class.java, Int::class.javaPrimitiveType,
         Boolean::class.javaPrimitiveType, BlendMode::class.java, Int::class.javaPrimitiveType)
-        .newInstance(radius * 0.85f, base.getMethod("getColorLayer1", Context::class.java).invoke(tint, context),
-            false, base.getMethod("getBlendModeLayer1").invoke(tint),
-            base.getMethod("getColorLayer2", Context::class.java).invoke(tint, context), false,
-            base.getMethod("getBlendModeLayer2").invoke(tint), 255)
+        .newInstance(radius * 0.85f, base.getMethod("getColorLayer1", Context::class.java).invoke(fabPreset, context),
+            false, base.getMethod("getBlendModeLayer1").invoke(fabPreset),
+            base.getMethod("getColorLayer2", Context::class.java).invoke(fabPreset, context), false,
+            base.getMethod("getBlendModeLayer2").invoke(fabPreset), 255)
 }
 
 /** Native-only input scope: no schedule config, backdrop, overlay controller or animation value. */

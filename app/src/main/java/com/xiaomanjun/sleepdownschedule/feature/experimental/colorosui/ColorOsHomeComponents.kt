@@ -58,8 +58,12 @@ internal class NativeDock(
         this.neutral = neutral
         if (restorePreset) view.javaClass.getMethod("refresh").invoke(view)
         val colors = dockIconColors(source, context, color)
-        icons.forEach { it.setTintList(colors) }
+        icons.forEach {
+            it.setTintList(colors)
+            (it as DockContrastIcon).setContrastEnabled(neutral)
+        }
         view.javaClass.getMethod("setItemsTitleTextColor", ColorStateList::class.java).invoke(view, colors)
+        applyDockTextContrast(view, neutral)
         tintLight()
         applyMaterial()
     }
@@ -77,6 +81,8 @@ internal class NativeDock(
         }
     }
 
+    fun refreshContentContrast() { applyDockTextContrast(view, neutral) }
+
     fun tintLight() {
         val base = "com.coui.appcompat.bottomfloatingnavigationbar.BaseBottomFloatingMenuView"
         val menuType = source.load(base)
@@ -89,7 +95,10 @@ internal class NativeDock(
 
     fun select(index: Int) {
         val wanted = index + 1
-        if (getSelected.invoke(view) == wanted) return
+        if (getSelected.invoke(view) == wanted) {
+            applyDockTextContrast(view, neutral)
+            return
+        }
         // State synchronization is separate from the native user's touch/slide callbacks.
         setListener.invoke(view, null)
         try {
@@ -97,6 +106,7 @@ internal class NativeDock(
         } finally {
             setListener.invoke(view, listener)
         }
+        applyDockTextContrast(view, neutral)
     }
 
     fun expansionMoving(): Boolean = listOf("mExpansionViewAlphaAnim", "mExpansionViewScaleAnim",
@@ -144,7 +154,8 @@ internal fun createNativeHomeDock(
             // This XML has the same path as the original Compose Icons.Default.Settings.
             else -> icon
         }
-        val drawable = requireNotNull(ContextCompat.getDrawable(host, currentIcon)).mutate()
+        val drawable = DockContrastIcon(requireNotNull(ContextCompat.getDrawable(host, currentIcon)).mutate(),
+            context.resources.displayMetrics.density, iconColors).apply { setContrastEnabled(neutral) }
         drawable.setTintList(iconColors)
         icons += drawable
         builderType.getMethod("setIcon", android.graphics.drawable.Drawable::class.java)
@@ -172,7 +183,10 @@ internal fun createNativeHomeDock(
     return NativeDock(bar, type.getMethod("getSelectedItemId"),
         type.getMethod("setSelectedItemId", Int::class.javaPrimitiveType), setListener, listener,
         icons, source, context, accent, neutral).also { dock ->
-        source.bindFollowLightIntensity(bar, afterMaterialApplied = dock::applyMaterial)
+        source.bindFollowLightIntensity(bar, afterMaterialApplied = {
+            dock.applyMaterial()
+            dock.refreshContentContrast()
+        })
         bar.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) { view.post { dock.tintLight() } }
             override fun onViewDetachedFromWindow(view: View) = Unit
@@ -222,8 +236,7 @@ internal fun ColorOsHomeDock(
     val callback = rememberUpdatedState(onSelect)
     val source = native.first
     val context = native.second
-    val accent = if (style != null) source.color(context, "couiColorPrimaryNeutral").defaultColor
-        else dockAccent(source, context, LocalColorOsDockAccent.current)
+    val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
     val height = with(LocalDensity.current) {
         context.resources.getDimensionPixelSize(source.resource("coui_bottom_floating_navigation_bar_height", "dimen")).toDp()
     }

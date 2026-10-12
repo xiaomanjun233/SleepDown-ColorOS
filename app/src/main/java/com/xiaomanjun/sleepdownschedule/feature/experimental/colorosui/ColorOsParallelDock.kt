@@ -64,8 +64,7 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
         this.neutral = neutral
         if (restorePreset) root.javaClass.getMethod("onConfigurationChanged", android.content.res.Configuration::class.java)
             .invoke(root, root.context.resources.configuration)
-        icon.drawable?.setTintList(source.color(root.context,
-            if (neutral) "couiColorPrimaryNeutral" else "couiColorOnPrimary"))
+        icon.drawable?.setTintList(source.color(root.context, "couiColorOnPrimary"))
         root.javaClass.getMethod("setMainFloatingButtonBackgroundColor", ColorStateList::class.java)
             .invoke(root, ColorStateList.valueOf(color))
         applyMaterial()
@@ -74,7 +73,11 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
     fun applyMaterial() {
         if (!neutral || !main.isAttachedToWindow || !source.blurEnabled()) return
         val base = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
-        val params = source.weatherFabBlurParams(root.context)
+        val themeType = source.load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect\$ThemeBlurEffectType")
+        val preset = root.javaClass.getDeclaredMethod("getNonThemeFabColor", ColorStateList::class.java, themeType)
+            .apply { isAccessible = true }.invoke(root, ColorStateList.valueOf(accent),
+                themeType.getField("TYPE_FRAMEWORK_FAB").get(null))
+        val params = source.homeFabBlurParams(root.context, preset)
         source.load("com.coui.appcompat.COUIMaterialEffect")
             .getMethod("setViewBlurEffect", View::class.java, base)
             .invoke(null, main, params)
@@ -92,7 +95,7 @@ private fun createNativeFab(
     val main = type.getMethod("getMainView").invoke(root) as View
     val icon = type.getMethod("getMainFloatingButton").invoke(root) as ImageView
     val plus = requireNotNull(ContextCompat.getDrawable(host, R.drawable.ic_add_course)).mutate()
-    plus.setTintList(source.color(context, if (neutral) "couiColorPrimaryNeutral" else "couiColorOnPrimary"))
+    plus.setTintList(source.color(context, "couiColorOnPrimary"))
     type.getMethod("setMainFabDrawable", android.graphics.drawable.Drawable::class.java).invoke(root, plus)
     // SleepDown's existing menu opens after the native click; the FAB's own action list stays closed.
     type.getMethod("setIsFloatingButtonExpandEnable", Boolean::class.javaPrimitiveType).invoke(root, false)
@@ -113,14 +116,6 @@ private fun createNativeFab(
     }
 }
 
-private fun fabAccent(source: ColorOsNativeUi.Source, context: Context, neutral: Boolean, accent: Int): Int =
-    if (neutral) weatherButtonFill(context) else accent
-
-// COUIButton.changeButtonAlphaColor(blur=true, TRANSPARENT), as used by Weather.
-private fun weatherButtonFill(context: Context): Int =
-    if (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
-        android.content.res.Configuration.UI_MODE_NIGHT_YES) 0x19FFFFFF else 0x33FFFFFF
-
 /** The menu's return endpoint uses the same native FAB, with no touch or Kyant feedback. */
 @Composable
 internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier): Boolean {
@@ -128,8 +123,7 @@ internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier):
     val effectiveDark = style?.dark ?: dark
     val native = rememberNativeContext(effectiveDark) ?: return false
     val host = LocalContext.current
-    val accent = if (style != null) weatherButtonFill(native.second)
-        else dockAccent(native.first, native.second, LocalColorOsDockAccent.current)
+    val accent = dockAccent(native.first, native.second, LocalColorOsDockAccent.current)
     val fab = remember(native, host) {
         ColorOsNativeUi.prepare("create the native FAB return endpoint") {
             createNativeFab(native.first, native.second, host, accent, style != null, null)
@@ -179,9 +173,8 @@ internal fun ColorOsParallelHomeDock(
     val open = rememberUpdatedState(onOpenMenu)
     val canOpen = rememberUpdatedState(selectedIndex < 2 && !buttonHidden)
     val returnLayer = rememberGraphicsLayer()
-    val accent = if (style != null) source.color(context, "couiColorPrimaryNeutral").defaultColor
-        else dockAccent(source, context, LocalColorOsDockAccent.current)
-    val fabColor = fabAccent(source, context, style != null, accent)
+    val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
+    val fabColor = accent
     val returnRecorded = remember(native, effectiveDark, fabColor, density.density) { AtomicBoolean(false) }
     val group = remember(native, host, composeRoot) {
         ColorOsNativeUi.prepare("create the native 3+1 dock") {
