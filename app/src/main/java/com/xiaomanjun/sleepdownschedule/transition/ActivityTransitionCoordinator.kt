@@ -200,6 +200,7 @@ object ActivityTransitionCoordinator {
         TransitionPayloadStore.session(sessionId)?.moveTo(TransitionSessionState.Finished)
         TransitionPayloadStore.remove(sessionId)
         activity.finish()
+        if (profile == LegacyTransitionProfile.PlatformDefault || profile == LegacyTransitionProfile.TaskReturn) return
         if (profile is LegacyTransitionProfile.Depth) {
             if (Build.VERSION.SDK_INT < 34) {
                 @Suppress("DEPRECATION")

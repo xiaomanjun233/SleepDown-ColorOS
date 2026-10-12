@@ -68,7 +68,8 @@ fun CrossActivityTransitionHost(
                 .fillMaxSize()
                 .graphicsLayer { clip = false }
         ) {
-            if (legacyProfile is LegacyTransitionProfile.Depth ||
+            if (legacyProfile == LegacyTransitionProfile.PlatformDefault ||
+                legacyProfile is LegacyTransitionProfile.Depth ||
                 (legacyProfile != LegacyTransitionProfile.Page &&
                     com.xiaomanjun.sleepdownschedule.core.ui.designsystem.isLandscapeMenuWindow()) ||
                 routeId == TransitionRouteId.TabletHomeToCourseManagement ||

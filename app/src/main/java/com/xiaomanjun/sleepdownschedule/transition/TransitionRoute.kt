@@ -93,7 +93,7 @@ object TransitionRouteCatalog {
         TransitionRouteSpec(
             TransitionRouteId.HomeMenuToCourseManagement,
             "$PackageName.feature.experimental.colorosui.ColorOsCourseManagementActivity",
-            LegacyTransitionProfile.Page
+            LegacyTransitionProfile.PlatformDefault
         ),
         TransitionRouteSpec(
             id = TransitionRouteId.HomeToCourseManagement,

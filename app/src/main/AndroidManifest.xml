@@ -213,7 +213,7 @@
         <activity
             android:name=".feature.experimental.colorosui.ColorOsCourseManagementActivity"
             android:exported="false"
-            android:theme="@style/AppTheme.TranslucentMorph"
+            android:theme="@style/AppTheme"
             android:parentActivityName=".MainActivity" />
         <activity
             android:name=".CourseManagementDetailActivity"
