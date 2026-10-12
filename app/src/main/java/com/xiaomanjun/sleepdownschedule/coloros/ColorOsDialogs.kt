@@ -184,12 +184,22 @@ private class NativeAlert(
         builder.javaClass.getDeclaredMethod("disabledTitleScroll", source.load("androidx.appcompat.app.AlertDialog"))
             .apply { isAccessible = true }.invoke(builder, dialog)
         builder.javaClass.getMethod("updateViewAfterShown").invoke(builder)
+        val primaryIndex = request().actions.indexOfFirst { it.style == LiquidAlertActionStyle.Primary }
+        if (primaryIndex >= 0) {
+            val primary = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
+                .invoke(dialog, slots[primaryIndex]) as TextView
+            val barType = source.load("com.coui.appcompat.buttonBar.COUIButtonBarLayout")
+            val bar = requireNotNull(generateSequence(primary.parent) { it.parent }.firstOrNull(barType::isInstance))
+            val buttonType = source.load("com.coui.appcompat.button.COUIButton\$ButtonType")
+            // Three-action alerts put Primary in the first (neutral) slot. Keep COUI's own
+            // recommendation identity aligned too, so later material refreshes use that slot.
+            barType.getMethod("setRecommendButtonId", Int::class.javaPrimitiveType).invoke(bar, primary.id)
+            barType.getMethod("setRecommendButtonType", buttonType).invoke(bar, buttonType.getField("PRIMARY").get(null))
+        }
         request().actions.forEachIndexed { index, action ->
-            if (action.style == LiquidAlertActionStyle.Primary) {
-                val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
-                    .invoke(dialog, slots[index]) as TextView
-                source.configureCapsuleButton(button, primary = true)
-            }
+            val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
+                .invoke(dialog, slots[index]) as TextView
+            source.configureCapsuleButton(button, primary = action.style == LiquidAlertActionStyle.Primary)
         }
         dialog.window?.decorView?.let {
             source.bindFollowLightIntensity(it, afterMaterialApplied = ::applyActionAppearance)
@@ -253,7 +263,12 @@ private class NativeAlert(
                         intArrayOf(0x61FFFFFF, Color.WHITE)))
                 }
                 LiquidAlertActionStyle.Destructive -> button.setTextColor(source.color(context, "couiColorError"))
-                else -> Unit
+                // Slot defaults may carry COUI's warning color. Semantics, not slot position,
+                // decide the foreground: sharing ICS and cancellation are ordinary actions.
+                LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Cancel -> button.setTextColor(
+                    ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                        intArrayOf(source.color(context, "couiColorLabelTertiary").defaultColor,
+                            source.color(context, "couiColorLabelPrimary").defaultColor)))
             }
         }
     }

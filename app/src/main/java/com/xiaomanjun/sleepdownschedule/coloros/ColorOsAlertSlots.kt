@@ -1,23 +1,16 @@
 package com.xiaomanjun.sleepdownschedule.coloros
 
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertActionStyle
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.verticalOrder
 
 internal enum class ColorOsAlertSlot { Positive, Negative, Neutral }
 
-/** COUI's vertical order is neutral, positive, negative; never derive cancellation from text. */
+/** Map semantic order onto COUI's neutral → positive → negative vertical positions. */
 internal fun colorOsAlertSlots(styles: List<LiquidAlertActionStyle>): List<ColorOsAlertSlot> {
     require(styles.size <= 3)
     if (styles.isEmpty()) return emptyList()
-    val cancel = styles.indexOfLast { it == LiquidAlertActionStyle.Cancel }
-    val positive = styles.indexOfLast { it == LiquidAlertActionStyle.Primary }.takeIf { it >= 0 }
-        ?: styles.indices.lastOrNull { it != cancel } ?: styles.lastIndex
-    val negative = cancel.takeIf { it >= 0 && it != positive }
-        ?: styles.indices.firstOrNull { it != positive }
-    return styles.indices.map {
-        when (it) {
-            positive -> ColorOsAlertSlot.Positive
-            negative -> ColorOsAlertSlot.Negative
-            else -> ColorOsAlertSlot.Neutral
-        }
-    }
+    val order = styles.indices.sortedBy { styles[it].verticalOrder() }
+    val positions = if (styles.size == 3) listOf(ColorOsAlertSlot.Neutral, ColorOsAlertSlot.Positive, ColorOsAlertSlot.Negative)
+        else listOf(ColorOsAlertSlot.Positive, ColorOsAlertSlot.Negative)
+    return styles.indices.map { positions[order.indexOf(it)] }
 }

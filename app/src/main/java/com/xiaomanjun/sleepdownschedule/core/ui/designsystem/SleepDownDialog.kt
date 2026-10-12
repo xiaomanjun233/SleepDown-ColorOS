@@ -90,6 +90,13 @@ enum class LiquidAlertActionStyle {
     Cancel
 }
 
+/** Vertical actions: colored recommendation first, ordinary/destructive actions next, cancel last. */
+internal fun LiquidAlertActionStyle.verticalOrder(): Int = when (this) {
+    LiquidAlertActionStyle.Primary -> 0
+    LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Destructive -> 1
+    LiquidAlertActionStyle.Cancel -> 2
+}
+
 data class LiquidAlertAction(
     val label: String,
     val style: LiquidAlertActionStyle,
@@ -516,7 +523,7 @@ fun LiquidAlertActions(
                 SleepDownDesignTokens.CenteredDialog.ActionSpacing
             )
         ) {
-            actions.sortedBy { it.style == LiquidAlertActionStyle.Cancel }.forEach { action ->
+            actions.sortedBy { it.style.verticalOrder() }.forEach { action ->
                 LiquidAlertActionButton(action, backdrop, config, Modifier.fillMaxWidth())
             }
         }
