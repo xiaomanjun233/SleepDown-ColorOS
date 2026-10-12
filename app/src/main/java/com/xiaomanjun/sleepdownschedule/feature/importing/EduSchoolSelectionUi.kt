@@ -926,7 +926,7 @@ fun SchoolSearchField(
     modifier: Modifier = Modifier
 ) {
     val isLargeScreen = rememberHomeAdaptiveMetrics().isLargeScreen
-    if (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsSchoolSearchField(
+    if (com.xiaomanjun.sleepdownschedule.coloros.ColorOsSchoolSearchField(
             value, onValueChange, appUsesDarkTheme(config), bottomOffset,
             entranceProgress, isLargeScreen, modifier
         )) return

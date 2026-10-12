@@ -1,4 +1,4 @@
-package com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
+package com.xiaomanjun.sleepdownschedule.coloros
 
 import com.xiaomanjun.sleepdownschedule.R
 

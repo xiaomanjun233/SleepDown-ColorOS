@@ -25,7 +25,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.*
 import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.feature.home.week.*
 import com.xiaomanjun.sleepdownschedule.feature.home.overlay.*
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeIconButton
+import com.xiaomanjun.sleepdownschedule.coloros.ColorOsHomeIconButton
 
 import com.xiaomanjun.sleepdownschedule.app.config.SleepDownRemoteConfig
 import com.xiaomanjun.sleepdownschedule.core.performance.*
@@ -1389,7 +1389,7 @@ fun CourseScheduleAppUi(
         }
     }
     val wallpaperImages by rememberHomeWallpaperImages(visualState.config)
-    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
+    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.coloros
         .rememberColorOsDockAccent(wallpaperImages)
     val colorOsOverflowActions = remember { mutableStateOf<List<AddMenuAction>>(emptyList()) }
     val homeWallpaperRecordKey = remember { mutableStateOf<Any?>(null) }
@@ -1414,7 +1414,7 @@ fun CourseScheduleAppUi(
     val homeChromeHasWallpaper = visualState.config.hasAnyWallpaper()
     val homeChromeForeground = adaptiveGlassState.contentColor.toArgb().takeIf { homeChromeHasWallpaper }
     val homeNeutralChromeStyle = remember(appDarkTheme, homeChromeHasWallpaper, homeChromeForeground) {
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeChromeStyle(
+        com.xiaomanjun.sleepdownschedule.coloros.ColorOsHomeChromeStyle(
             appDarkTheme, homeChromeHasWallpaper, homeChromeForeground)
     }
     val statusBarWallpaperLuminance = remember(homeReadabilityContext) {
@@ -2447,10 +2447,10 @@ fun CourseScheduleAppUi(
         LocalStartupPhase provides startupPhase,
         LocalGlassQuality provides glassQuality,
         LocalAdaptiveGlass provides adaptiveGlassState,
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsDockAccent provides colorOsDockAccent,
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsHomeChromeStyle provides
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent provides colorOsDockAccent,
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle provides
             homeNeutralChromeStyle.takeIf { screen is Screen.Home },
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsOverflowMenu provides
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsOverflowMenu provides
             colorOsOverflowActions.takeIf { parallelPhoneNavigation },
         LocalHomeReadability provides homeReadabilityContext,
         LocalCourseCardPalette provides homeCoursePalette,
@@ -2672,7 +2672,7 @@ fun CourseScheduleAppUi(
             }
     ) {
         val nativeHomeDockAvailable = remember(context) {
-            com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNativeUi.source(context) != null
+            com.xiaomanjun.sleepdownschedule.coloros.ColorOsNativeUi.source(context) != null
         }
         val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)
         val dockSelectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1
@@ -3172,7 +3172,7 @@ fun CourseScheduleAppUi(
     // Capture the complete page, including its native Dock, at full size before the outer
     // shortcut blur downsamples it. Native material corners must not first render into the
     // reduced blur pass. Keep inputs outside course-only locals to avoid native recomposition.
-    if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.NativeHomeDockChrome(
+    if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.coloros.NativeHomeDockChrome(
         visible = dockVisible,
         parallel = parallelPhoneNavigation,
         selectedIndex = dockSelectedIndex,
@@ -4527,7 +4527,7 @@ fun CourseScheduleAppUi(
                 }
             )
         } else {
-        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsOrComposeDialog(
+        com.xiaomanjun.sleepdownschedule.coloros.ColorOsOrComposeDialog(
             config = state.config,
             visible = homeDialogVisible,
             onDismissRequest = {
@@ -5745,7 +5745,7 @@ fun FloatingDock(
             HomeDockTabs(
                 selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
                 config = config, backdrop = backdrop, lightGlass = lightGlass,
-                modifier = Modifier.width(com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui
+                modifier = Modifier.width(com.xiaomanjun.sleepdownschedule.coloros
                     .colorOsOrdinaryDockWidth()).excludeHomeAssistantPull(),
                 onSelect = { index -> if (index == 0) onHome() else onConfig() }
             )
@@ -9254,7 +9254,7 @@ fun ScheduleNameDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNameDialog(
+    if (com.xiaomanjun.sleepdownschedule.coloros.ColorOsNameDialog(
             title, initialName, appUsesDarkTheme(config), null, onDismiss, onConfirm)) return
     var name by remember { mutableStateOf(initialName) }
     val textColor = glassForegroundColor(config)

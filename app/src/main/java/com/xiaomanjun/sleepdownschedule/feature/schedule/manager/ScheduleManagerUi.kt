@@ -1129,7 +1129,7 @@ fun ScheduleRenameDialog(
     onCancel: () -> Unit,
     onSave: (String) -> Unit
 ) {
-    if (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNameDialog(
+    if (com.xiaomanjun.sleepdownschedule.coloros.ColorOsNameDialog(
             "重命名课表", profile.name, appUsesDarkTheme(config), 24, onCancel,
             { onSave(it.ifBlank { "未命名课表" }) })) return
     var name by remember(profile.id) { mutableStateOf(profile.name) }

@@ -18,7 +18,7 @@ import com.xiaomanjun.sleepdownschedule.app.ui.HomeLightGlassSelectedAccentColor
 import com.xiaomanjun.sleepdownschedule.app.ui.HomeLightGlassSurfaceColor
 import com.xiaomanjun.sleepdownschedule.app.ui.homeChromeBlur
 import com.xiaomanjun.sleepdownschedule.app.ui.homeChromeGlassSurfaceAlpha
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeDock
+import com.xiaomanjun.sleepdownschedule.coloros.ColorOsHomeDock
 import com.xiaomanjun.sleepdownschedule.glass.ui.GlassPill
 
 /** Both phone modes use the same Dock cells and material; parallel mode adds one cell. */

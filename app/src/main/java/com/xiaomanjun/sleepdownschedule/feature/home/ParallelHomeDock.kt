@@ -36,8 +36,8 @@ import com.xiaomanjun.sleepdownschedule.app.ui.*
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownFloatingAddButton
 import com.xiaomanjun.sleepdownschedule.feature.agent.excludeHomeAssistantPull
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeFloatingButtonVisual
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsParallelHomeDock
+import com.xiaomanjun.sleepdownschedule.coloros.ColorOsHomeFloatingButtonVisual
+import com.xiaomanjun.sleepdownschedule.coloros.ColorOsParallelHomeDock
 import com.xiaomanjun.sleepdownschedule.glass.withRecordingDensity
 import com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
@@ -51,7 +51,7 @@ internal fun homeImportButtonGlassColor(light: Boolean): Color =
 
 @Composable
 internal fun homeDockImportButtonGlassColor(light: Boolean): Color =
-    (com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsDockAccent.current
+    (com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent.current
         ?.let { Color(it) } ?: HomeImportButtonColor).copy(alpha = homeChromeGlassSurfaceAlpha(light))
 
 /** The return endpoint is the resting button, without the captured press deformation. */

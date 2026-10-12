@@ -17,7 +17,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.feature.home.week.*
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorOpeningTaper
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorTaperTransform
-import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsHomeChromeStyle
+import com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
