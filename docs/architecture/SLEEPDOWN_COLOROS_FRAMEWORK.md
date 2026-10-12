@@ -26,7 +26,9 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 ## 弹窗操作顺序
 
-`LiquidAlertActionStyle.Cancel` 表达取消/继续编辑语义，不按显示文本判断。COUI 原生纵向按钮顺序是 neutral → positive → negative，因此取消映射到 negative、推荐确认映射到 positive，剩余操作映射到 neutral；业务回调仍按原始 action 索引绑定。Compose 三排后备布局同样将 Cancel 排到最后。
+`LiquidAlertActionStyle.Cancel` 表达取消/继续编辑语义，不按显示文本判断。纵向操作按 Primary → 普通/破坏性操作 → Cancel 排列。COUI 三排的物理顺序为 neutral → positive → negative，因此 Primary 映射到 neutral、取消映射到 negative；两操作使用 positive → negative。原生按钮栏的 recommend ID 同步到实际 Primary 按钮，业务回调仍按原始 action 索引绑定。Compose 三排后备布局使用同一优先级。
+
+按钮类型和文字颜色明确按业务语义设置，不继承位置默认色。分享 ICS 是 Secondary，使用普通字色；只有 Destructive 使用错误色。课程 shortcut 的删除图标和文字继续使用红色，不受弹窗排序影响。
 
 窗口位置、材质、进入退出动画仍由 COUI 默认弹窗负责。关闭后的动作在系统退出完成后派发；表单的脏数据保护、校验与保存语义保持在业务层。
 
@@ -54,11 +56,11 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 `NativeMaterialSurfaceRenderer` 复用课程凝光的原生背景 View，但不受课程凝光开关控制。周表头、日期状态胶囊、AI 卡片、会话外壳、提醒和输入框通过 glass / 设计系统入口使用该能力；缺少能力时保留原绘制。
 
-原生 View 负责模糊、描边和跟手光，Compose 负责文字、图标、布局和编辑输入。背景不拦截输入、不创建按钮点击行为；动态形状在 draw/layer 中读取并更新原生 outline，保留既有 AI 形变及快照归属。带颜色的日期状态胶囊使用与按钮相同的颜色参数。
+原生 View 负责模糊、描边和跟手光，Compose 负责文字、图标、布局和编辑输入。背景不拦截输入、不创建按钮点击行为；动态形状在 draw/layer 中读取并更新原生 outline，保留既有 AI 形变及快照归属。表头的模糊半径为系统通透预设的 60%；日期状态胶囊叠加原配色的纵向渐变，上部着色 30%、底部 50%，不再使用按钮的统一实色层。
 
 ## 课程凝光与渐变模糊
 
-课程凝光保留课程渐变色与默认 50% 着色，模糊沿用内容通透预设。描边改用 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`；跟手光改用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角。个性化面板只保留开关与着色滑杆，不显示模式说明文字。
+课程凝光保留课程渐变色与默认 50% 着色，模糊沿用内容通透预设。课程与表头描边基于 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`，宽度调为该预设的 1.3 倍，让光感略多覆盖圆角；亮度、方向和阴影衰减仍取系统值。跟手光使用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角，也不额外设置 OplusMaterialCornerParams。个性化面板只保留开关与着色滑杆，不显示模式说明文字。
 
 所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
 
