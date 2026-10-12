@@ -1410,6 +1410,9 @@ fun CourseScheduleAppUi(
         )
     }
     val appDarkTheme = appUsesDarkTheme(visualState.config)
+    val homeNeutralChromeStyle = remember(appDarkTheme) {
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsHomeChromeStyle(appDarkTheme)
+    }
     val statusBarWallpaperLuminance = remember(homeReadabilityContext) {
         homeStatusBarWallpaperLuminance(homeReadabilityContext)
     }
@@ -2442,6 +2445,8 @@ fun CourseScheduleAppUi(
         LocalGlassQuality provides glassQuality,
         LocalAdaptiveGlass provides adaptiveGlassState,
         com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsDockAccent provides colorOsDockAccent,
+        com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsHomeChromeStyle provides
+            homeNeutralChromeStyle.takeIf { screen is Screen.Home },
         com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsOverflowMenu provides
             colorOsOverflowActions.takeIf { parallelPhoneNavigation },
         LocalHomeReadability provides homeReadabilityContext,
@@ -2663,8 +2668,7 @@ fun CourseScheduleAppUi(
                 drawContent()
             }
     ) {
-        // Native chrome remains outside every background transform, including assistant depth.
-        val nativeDockOutsideBackground = remember(context) {
+        val nativeHomeDockAvailable = remember(context) {
             com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNativeUi.source(context) != null
         }
         val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)
@@ -3144,7 +3148,7 @@ fun CourseScheduleAppUi(
                 showScheduleEntryPill = false
                 if (pickerState.phase is CustomizeUiState.ShowingEntryButton) pickerState.phase = CustomizeUiState.Home
             }
-            if (!nativeDockOutsideBackground) HomeDockChrome(
+            if (!nativeHomeDockAvailable) HomeDockChrome(
                 visible = dockVisible,
                 parallel = parallelPhoneNavigation,
                 selectedIndex = dockSelectedIndex,
@@ -3294,29 +3298,31 @@ fun CourseScheduleAppUi(
             // that does not contain the later quick-settings sheet consumer.
             modifier = Modifier.glassBackdropProducer(pickerSceneBackdrop)
         )
-    }
-    } // end frozen background locals
-    } // end cached home content
-    } // end HomeBackgroundBlurLayer
-    } // end HomeBackgroundZoomLayer
+    } // end course/frozen locals
+    } // end cached course/page content
 
-    // Native RenderNode material is its own consumer. Keep it outside the full-screen
-    // blur/zoom producer used by plus menus, centered overlays and course shortcuts.
-    // This is now a root sibling. The old local zIndex(100) would cover root overlays;
-    // draw after the background, at its normal z-order, and below modal consumers.
-    if (nativeDockOutsideBackground) HomeDockChrome(
+    // Dock belongs to the page underlay and is included in its retained blur scene.
+    // Keep it outside course-only locals/capture so shortcut phases do not update native UI.
+    if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.NativeHomeDockChrome(
         visible = dockVisible,
         parallel = parallelPhoneNavigation,
         selectedIndex = dockSelectedIndex,
-        config = dockConfig,
-        backdrop = chromeBackdrop,
-        phase = startupPhase,
+        dark = if (screen is Screen.Home) appDarkTheme else appUsesDarkTheme(state.config),
+        alignment = dockConfig.dockAlignment,
         buttonHidden = dockButtonHidden,
         onSelect = dockSelect,
-        onOrdinaryHome = ordinaryDockHome,
+        onHome = ordinaryDockHome,
         onOpenMenu = dockOpenMenu,
+        phase = startupPhase,
+        fallback = {
+            HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
+                chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
+        },
         modifier = Modifier.align(Alignment.BottomStart)
     )
+    } // end HomeBackgroundBlurLayer
+    } // end HomeBackgroundZoomLayer
+    } // end assistant background depth
 
     val latestOpenHomeMenuDestination = rememberUpdatedState<(HomeMenuDestinationKind) -> Unit> {
         kind -> openHomeMenuDestination(kind)
@@ -5875,7 +5881,6 @@ internal const val PersonalizeCardAlphaSlider = "card-alpha"
 internal const val PersonalizeCardBlurSlider = "card-blur"
 internal const val PersonalizeCardRefractionSlider = "card-refraction"
 private const val PersonalizeNativeCardTintSlider = "native-card-tint"
-private const val PersonalizeNativeCardOutlineSlider = "native-card-outline"
 internal const val PersonalizeCardFontSlider = "card-font"
 private const val PersonalizeCardGlassChange = "card-glass"
 private const val PersonalizeCardOutlineLightChange = "card-outline-light"
@@ -7094,19 +7099,6 @@ fun PersonalizePanel(
                                 if (!active) material.onPreviewFinished()
                             }, snapValue = 1f,
                             onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
-                        )
-                        if (state.config.courseCardOutlineLightEnabled) PersonalizeValueSlider(
-                            sliderKey = PersonalizeNativeCardOutlineSlider,
-                            value = material.outlineLightStrength, valueRange = 0f..1f, backdrop = backdrop,
-                            label = { "轮廓光强度 ${(it * 100).toInt()}%" },
-                            onCommit = { material.onOutlineLightStrengthChange(it, true) },
-                            onPreviewValueChange = { material.onOutlineLightStrengthChange(it, false) },
-                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
-                            onSliderPreviewActiveChange = { key, active ->
-                                onSliderPreviewActiveChange(key, active)
-                                if (!active) material.onPreviewFinished()
-                            }, snapValue = 1f,
-                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardOutlineSlider, it) }
                         )
                     }
                 }

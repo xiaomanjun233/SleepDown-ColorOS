@@ -825,11 +825,10 @@ private fun DrawScope.drawBottomLitGlassTint(
 
 private fun bottomLitGlassTintBrush(
     color: Color, height: Float, topTintFloor: Float = 0.20f,
-    expanded: Boolean = false, uniformTintFraction: Float = 0f
+    expanded: Boolean = false
 ): Brush {
     val top = topTintFloor.coerceIn(0f, 0.72f)
-    val uniform = uniformTintFraction.coerceIn(0f, 1f)
-    fun tint(weight: Float) = color.copy(alpha = color.alpha * (uniform + (1f - uniform) * weight))
+    fun tint(weight: Float) = color.copy(alpha = color.alpha * weight)
     val firstLiftY = if (expanded) 0.68f else 0.82f
     val brightBandY = if (expanded) 0.82f else 0.90f
     val rimY = if (expanded) 0.92f else 0.96f
@@ -1094,26 +1093,24 @@ fun CourseGlassCard(
     if (nativeMode?.enabled == true) {
         val base = if (muted) MutedCourseLightColor else courseCardBaseColor(config, course)
         val outline = muted || config.courseCardOutlineLightEnabled
-        val outlineStrength = if (outline) nativeMode.outlineLightStrength else 0f
         val brightness = if (outline) courseCardBrightnessAttenuation(config.wallpaperBrightness, true) else 1f
         val alpha = courseGlassTintAlpha(if (outline) 0.75f else previewState?.cardAlpha ?: config.cardAlpha,
             1f, config.hasAnyWallpaper()) * brightness * nativeMode.tintStrength
         val blurPx = with(androidx.compose.ui.platform.LocalDensity.current) {
             (blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur).dp.toPx()
         }
-        val light = glassUsesLightStyle(config)
-        val tintDraw: (DrawScope.() -> Unit)? = if (outline) remember(base, alpha, outlineStrength, expandedOutlineLight, light) {
+        val tintDraw: (DrawScope.() -> Unit)? = if (outline) remember(base, alpha, expandedOutlineLight) {
             var height = Float.NaN
             var brush: Brush? = null
             val draw: DrawScope.() -> Unit = {
                 if (size.height != height) {
                     height = size.height
                     brush = bottomLitGlassTintBrush(base.copy(alpha = alpha), height,
-                        expanded = expandedOutlineLight, uniformTintFraction = 1f - outlineStrength)
+                        expanded = expandedOutlineLight)
                 }
+                // Transfer course tint only. Native stroke and foreground light own the
+                // material highlights; legacy shading would paint over and duplicate them.
                 drawRect(requireNotNull(brush))
-                drawRect(Color.White.copy(alpha = (if (light) 0.012f else 0.008f) * outlineStrength), blendMode = BlendMode.Screen)
-                drawRect(Color.Black.copy(alpha = (if (light) 0.004f else 0.014f) * outlineStrength))
             }
             draw
         } else null
@@ -1126,22 +1123,13 @@ fun CourseGlassCard(
         } }
         val background = rememberCourseTextBackground(base, alpha, true, blurPx, outline, expandedOutlineLight,
             flatBackground = homeFlatBackgroundColor(appUsesDarkTheme(config)).takeUnless { config.hasAnyWallpaper() },
-            ready = true, cardBounds = cardBounds, outlineStrength = outlineStrength)
+            ready = true, cardBounds = cardBounds)
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
                 modifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config), base, alpha, blurPx,
-                renderSurface, drawMaterialNodes, onClick, tintDraw, outlineStrength
+                renderSurface, drawMaterialNodes, onClick, tintDraw
             )) {
-                Box {
-                    if (outline && renderSurface && viewportMaterialVisible &&
-                        materialPolicy.level != com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialLevel.PERFORMANCE) {
-                        VerticalGlassAccentOverlay(base, shape, light,
-                            intensity = outlineStrength * brightness,
-                            expanded = expandedOutlineLight, surroundingEdgeGlow = true,
-                            modifier = Modifier.matchParentSize())
-                    }
-                    CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }
-                }
+                CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }
             } == true) return
     }
     val glassBackdrop = if (

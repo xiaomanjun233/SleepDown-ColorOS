@@ -12,17 +12,14 @@ internal data class NativeCourseCardRequest(
     val modifier: Modifier, val shape: Shape, val dark: Boolean, val color: Color,
     val tintAlpha: Float, val blurRadiusPx: Float, val renderSurface: Boolean,
     val materialVisible: Boolean, val onClick: (() -> Unit)?,
-    val onDrawTint: (DrawScope.() -> Unit)? = null,
-    val outlineLightStrength: Float = 1f
+    val onDrawTint: (DrawScope.() -> Unit)? = null
 )
 
 internal data class NativeCourseCardMode(
     val enabled: Boolean,
     val onEnabledChange: (Boolean) -> Unit,
     val tintStrength: Float,
-    val outlineLightStrength: Float,
     val onTintStrengthChange: (Float, Boolean) -> Unit,
-    val onOutlineLightStrengthChange: (Float, Boolean) -> Unit,
     val onPreviewFinished: () -> Unit
 )
 

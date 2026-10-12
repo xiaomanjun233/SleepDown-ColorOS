@@ -17,6 +17,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.feature.home.week.*
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorOpeningTaper
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorTaperTransform
+import com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.LocalColorOsHomeChromeStyle
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -2572,8 +2573,12 @@ internal fun HomeAddMenuMorphPanel(
                 HomeAddMenuDividerHeightDp
             ).dp.toPx()
     }
-    val lightGlass = glassUsesLightStyle(config)
-    val textColor = glassForegroundColor(config)
+    val homeStyle = LocalColorOsHomeChromeStyle.current.takeIf { !compactActions }
+    val menuConfig = remember(config, homeStyle) {
+        if (homeStyle != null) config.copy(wallpaperUri = null) else config
+    }
+    val lightGlass = glassUsesLightStyle(menuConfig)
+    val textColor = glassForegroundColor(menuConfig)
     val showSurface by remember(retainSurface, surfaceAlphaProvider, backdrop) {
         derivedStateOf { retainSurface || backdrop == null || surfaceAlphaProvider() > 0.005f }
     }
@@ -2740,7 +2745,7 @@ internal fun HomeAddMenuMorphPanel(
                 ) {
                     actions.forEachIndexed { index, action ->
                         AddMenuLiquidItem(
-                            config = config,
+                            config = menuConfig,
                             action = action,
                             itemHeight = actionItemHeight,
                             compactCapsule = compactActions,

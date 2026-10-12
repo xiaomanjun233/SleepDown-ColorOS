@@ -160,7 +160,7 @@ internal object ColorOsNativeUi {
         }
 
         /** One pass after attach/layout or material changes, never an animation-frame poll. */
-        fun bindFollowLightIntensity(root: View, delegate: Any? = null) {
+        fun bindFollowLightIntensity(root: View, delegate: Any? = null, afterMaterialApplied: (() -> Unit)? = null) {
             val listenerType = load("com.coui.appcompat.OnMaterialStateChangeListener")
             var pending: ViewTreeObserver.OnPreDrawListener? = null
             var observer: ViewTreeObserver? = null
@@ -176,7 +176,10 @@ internal object ColorOsNativeUi {
                 observer = tree
                 pending = ViewTreeObserver.OnPreDrawListener {
                     cancelPending()
-                    prepare("adjust native follow light intensity") { boostFollowLights(root, delegate) }
+                    prepare("adjust native follow light intensity") {
+                        boostFollowLights(root, delegate)
+                        afterMaterialApplied?.invoke()
+                    }
                     true
                 }.also { tree.addOnPreDrawListener(it) }
                 root.invalidate()
@@ -206,6 +209,8 @@ internal object ColorOsNativeUi {
             })
             if (root.isAttachedToWindow) attach()
         }
+
+        fun blurEnabled(): Boolean = materialManagerType.getMethod("isBlurEffectEnable").invoke(materialManager) == true
 
         fun themedContext(host: Context, dark: Boolean): Context {
             configureMaterial(host.applicationContext)

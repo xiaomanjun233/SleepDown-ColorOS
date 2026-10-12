@@ -24,8 +24,7 @@ internal fun rememberCourseTextBackground(
     expanded: Boolean,
     flatBackground: Color? = null,
     ready: Boolean,
-    cardBounds: () -> Rect?,
-    outlineStrength: Float = 1f
+    cardBounds: () -> Rect?
 ): CourseTextBackground {
     val wallpaper = LocalHomeReadability.current
     val backgroundFrozen = LocalHomeBackgroundFrozen.current
@@ -35,7 +34,7 @@ internal fun rememberCourseTextBackground(
     // background identity and label caches across freeze/resume instead of recomposing
     // all course text twice per switch and resampling unchanged resting bounds.
     return remember(wallpaper, base, tintAlpha, blurred, blurPx, outline, expanded, ready,
-        flatBackground, backgroundFrozen, cardMotionFrozen, textContrastFrozen, outlineStrength) {
+        flatBackground, backgroundFrozen, cardMotionFrozen, textContrastFrozen) {
         val flatLuminance = flatBackground?.let {
             base.copy(alpha = tintAlpha.coerceIn(0f, 1f)).compositeOver(it).luminance()
         }
@@ -53,7 +52,7 @@ internal fun rememberCourseTextBackground(
             val card = cardBounds()
             val fraction = if (card != null && card.height > 0f)
                 ((windowBounds.center.y - card.top) / card.height).coerceIn(0f, 1f) else 0.5f
-            val outlineTintWeight = if (outline) {
+            val tintWeight = if (outline) {
                 val stops = if (expanded) listOf(0f to 0.2f, 0.48f to 0.2f, 0.68f to 0.48f,
                     0.82f to 0.84f, 0.92f to 0.88f, 1f to 1f)
                 else listOf(0f to 0.2f, 0.62f to 0.2f, 0.82f to 0.48f,
@@ -63,7 +62,6 @@ internal fun rememberCourseTextBackground(
                 val (b, bv) = stops[end]
                 av + (bv - av) * ((fraction - a) / (b - a))
             } else 1f
-            val tintWeight = 1f + (outlineTintWeight - 1f) * outlineStrength.coerceIn(0f, 1f)
             val tint = base.copy(alpha = (tintAlpha * tintWeight).coerceIn(0f, 1f))
             colors.map { source ->
                 val softened = if (blurred) Color(
