@@ -21,3 +21,6 @@ internal data class NativeMaterialSurfaceRequest(
 
 internal val LocalNativeMaterialSurfaceRenderer =
     compositionLocalOf<(@Composable (NativeMaterialSurfaceRequest, @Composable () -> Unit) -> Boolean)?> { null }
+
+/** Content can omit legacy press paint only when its surface actually uses native material. */
+internal val LocalNativeMaterialSurfaceActive = compositionLocalOf { false }

@@ -12,13 +12,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
@@ -44,6 +43,7 @@ import java.lang.reflect.Method
 private const val CourseMaterialPreference = "coloros_course_material"
 private const val CourseMaterialEnabled = "enabled"
 private const val CourseTintStrength = "tint_strength"
+private const val CourseBlurScale = "blur_radius_scale"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
 private const val BlurType = "com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType"
 private const val CourseBlurPreset = "TYPE_CONTENT_TRANSPARENT_BUTTON"
@@ -70,8 +70,9 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
     }
     if (!available) return null
     val preferences = remember(host) { host.getSharedPreferences(CourseMaterialPreference, Context.MODE_PRIVATE) }
-    var enabled by remember(preferences) { mutableStateOf(preferences.getBoolean(CourseMaterialEnabled, false)) }
-    var tint by remember(preferences) { mutableFloatStateOf(preferences.getFloat(CourseTintStrength, 0.5f)) }
+    val enabled = remember(preferences) { mutableStateOf(preferences.getBoolean(CourseMaterialEnabled, false)) }
+    val tint = remember(preferences) { mutableFloatStateOf(preferences.getFloat(CourseTintStrength, 0.5f).coerceIn(0f, 1f)) }
+    val blurScale = remember(preferences) { mutableFloatStateOf(preferences.getFloat(CourseBlurScale, 1f).coerceIn(0f, 2f)) }
     val blurRadius = remember(source) {
         val context = source.themedContext(host, false)
         val type = source.load(BlurType)
@@ -82,31 +83,39 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
     }
     DisposableEffect(preferences) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-            if (key == CourseMaterialEnabled) enabled = prefs.getBoolean(key, false)
-            if (key == CourseTintStrength) tint = prefs.getFloat(key, 0.5f)
+            if (key == CourseMaterialEnabled) enabled.value = prefs.getBoolean(key, false)
+            if (key == CourseTintStrength) tint.floatValue = prefs.getFloat(key, 0.5f).coerceIn(0f, 1f)
+            if (key == CourseBlurScale) blurScale.floatValue = prefs.getFloat(key, 1f).coerceIn(0f, 2f)
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    return NativeCourseCardMode(enabled,
+    return remember(preferences, blurRadius) { NativeCourseCardMode(enabled,
         onEnabledChange = { preferences.edit().putBoolean(CourseMaterialEnabled, it).apply() },
-        tintStrength = tint,
-        blurRadiusPx = blurRadius,
+        tintState = tint,
+        blurScaleState = blurScale,
+        defaultBlurRadiusPx = blurRadius,
         onTintStrengthChange = { value, commit ->
-            tint = value.coerceIn(0f, 1f)
-            if (commit) preferences.edit().putFloat(CourseTintStrength, tint).apply()
+            tint.floatValue = value.coerceIn(0f, 1f)
+            if (commit) preferences.edit().putFloat(CourseTintStrength, tint.floatValue).apply()
+        },
+        onBlurRadiusScaleChange = { value, commit ->
+            blurScale.floatValue = value.coerceIn(0f, 2f)
+            if (commit) preferences.edit().putFloat(CourseBlurScale, blurScale.floatValue).apply()
         },
         onPreviewFinished = {
-            tint = preferences.getFloat(CourseTintStrength, 0.5f)
-        })
+            tint.floatValue = preferences.getFloat(CourseTintStrength, 0.5f).coerceIn(0f, 1f)
+            blurScale.floatValue = preferences.getFloat(CourseBlurScale, 1f).coerceIn(0f, 2f)
+        }) }
 }
 
 /** Only the background View receives native sampling; course text stays sharp in Compose. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Composable () -> Unit): Boolean {
-    if (LocalNativeCourseCardMode.current?.enabled != true) return false
-    return ColorOsMaterialSurface(request.copy(strokeWidthScale = 1.3f), content)
+    val mode = LocalNativeCourseCardMode.current ?: return false
+    if (!mode.enabled) return false
+    return ColorOsMaterialSurface(request.copy(strokeWidthScale = 1.3f, blurRadiusScale = mode.blurRadiusScale), content)
 }
 
 /** Shared native backdrop for cards, table headers and assistant shells, with no input interception. */
@@ -142,7 +151,10 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
             it.updateOutline(request.shape, density, direction)
             it.configure(request, density, direction)
         })
-        content()
+        CompositionLocalProvider(
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceActive provides true,
+            content = content
+        )
     }
     DisposableEffect(surface) { onDispose { surface.release() } }
     return true
@@ -212,10 +224,16 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
 
     fun configure(value: NativeMaterialSurfaceRequest, density: Density, direction: LayoutDirection) {
         if (request == value && tintDensity == density && tintDirection == direction) return
+        val previous = request
+        val materialChanged = previous == null || previous.dark != value.dark ||
+            previous.materialVisible != value.materialVisible || previous.edgeEffects != value.edgeEffects ||
+            previous.blurRadiusScale != value.blurRadiusScale || previous.strokeWidthScale != value.strokeWidthScale
         request = value
         tintDensity = density
         tintDirection = direction
-        if (isAttachedToWindow) applyMaterial()
+        // Tint/content updates only need a redraw. Reinstalling COUI effects for every slider
+        // sample resets the native light/material animation even though its parameters match.
+        if (isAttachedToWindow && materialChanged) applyMaterial() else invalidate()
     }
 
     override fun onAttachedToWindow() {
@@ -252,7 +270,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private fun applyMaterial() {
         val value = request ?: return
         if (width <= 0 || height <= 0) return
-        val blur = value.materialVisible && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
+        val blur = value.materialVisible && value.blurRadiusScale > 0f &&
+            managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
         val stroke = value.materialVisible && value.edgeEffects && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
         val glow = value.materialVisible && value.edgeEffects && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
         // Keep the content-glass blur and course gradient; use the Dock's native edge/light

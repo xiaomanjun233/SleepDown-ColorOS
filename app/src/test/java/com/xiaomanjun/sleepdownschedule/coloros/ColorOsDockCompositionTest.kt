@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -17,6 +19,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
 import com.xiaomanjun.sleepdownschedule.DockAlignment
 import com.xiaomanjun.sleepdownschedule.core.performance.StartupPhase
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardMode
 import com.xiaomanjun.sleepdownschedule.glass.GlassBackdropDomain
 import com.xiaomanjun.sleepdownschedule.glass.LocalSharedCourseBackdrop
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassLayerBackdrop
@@ -37,6 +41,41 @@ import org.robolectric.shadows.ShadowLog
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ColorOsDockCompositionTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun nativeTintAndBlurPreviewOnlyInvalidateMaterialConsumers() {
+        val tint = mutableFloatStateOf(0.5f)
+        val blur = mutableFloatStateOf(1f)
+        val mode = NativeCourseCardMode(mutableStateOf(true), {}, tint, blur, 24f,
+            { _, _ -> }, { _, _ -> }, {})
+        var received = 0f to 0f
+        var providerCommits = 0
+        val receive: (Pair<Float, Float>) -> Unit = { received = it }
+        val select: (Int) -> Unit = {}
+        val home: () -> Unit = {}
+        val menu: (Rect, GraphicsLayer) -> Unit = { _, _ -> }
+        ShadowLog.clear()
+        compose.setContent {
+            SideEffect { providerCommits++ }
+            val fallback = rememberUpdatedState<@Composable () -> Unit> { Box(Modifier.size(64.dp)) }
+            CompositionLocalProvider(LocalNativeCourseCardMode provides mode) {
+                NativeCoursePreviewConsumer(receive)
+                NativeHomeDockChrome(true, true, 1, false, DockAlignment.CENTER, false,
+                    select, home, menu, fallback, StartupPhase.FullQuality)
+            }
+        }
+        compose.waitForIdle()
+        fun commits() = ShadowLog.getLogsForTag("SleepDownCOUI").count { it.msg.startsWith("Native dock commit:") }
+        val initial = commits()
+        val initialProvider = providerCommits
+        assertTrue(initial > 0)
+        for (value in 1..10) {
+            compose.runOnIdle { tint.floatValue = value / 10f; blur.floatValue = value / 5f }
+            compose.waitForIdle()
+        }
+        assertEquals(1f to 48f, received)
+        assertEquals(initialProvider, providerCommits)
+        assertEquals(initial, commits())
+    }
 
     @Test fun changingBackgroundCapturedByFallbackDoesNotCommitDockHostAgain() {
         val backgroundRevision = mutableIntStateOf(0)
@@ -96,6 +135,13 @@ class ColorOsDockCompositionTest {
         assertEquals("Course consumers must receive the live preview", 16f, receivedRadius, 0f)
         assertEquals("The course provider must not invalidate the native Dock", initial, commits())
     }
+}
+
+@Composable
+private fun NativeCoursePreviewConsumer(receive: (Pair<Float, Float>) -> Unit) {
+    val mode = requireNotNull(LocalNativeCourseCardMode.current)
+    val preview = mode.tintStrength to mode.blurRadiusPx
+    SideEffect { receive(preview) }
 }
 
 @Composable

@@ -767,16 +767,15 @@ fun TodayAgentCard(
             )
             .homeCountdownShockwave()
     ) {
-        // This is the one real glass shell. It is a sibling of the interactive content, so its
-        // compact card-sized texture can safely feed the LiquidButtons without recursive capture.
+        // Keep one material shell. Native content uses COUI's light instead of the legacy dim.
         GlassSurface(
             nativeMaterial = true,
             backdrop = backdrop,
             config = state.config,
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier.fillMaxWidth(),
             shape = cardShape,
             tokens = cardTokens
-        ) {}
+        ) {
         Box(
             modifier = Modifier.graphicsLayer {
                 alpha = sourceHandoffTransform?.let {
@@ -804,7 +803,7 @@ fun TodayAgentCard(
                     { permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }
                 } else null
             )
-            if (sourceCardPressed) {
+            if (sourceCardPressed && !com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceActive.current) {
                 Box(
                     Modifier
                         .matchParentSize()
@@ -814,6 +813,7 @@ fun TodayAgentCard(
                         )
                 )
             }
+        }
         }
     }
 
@@ -980,13 +980,14 @@ private fun AgentSimplePressSurface(
         tokens = tokens
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            Box(
+            val nativeMaterial = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceActive.current
+            if (!nativeMaterial) Box(
                 Modifier
                     .matchParentSize()
                     .background(Color.Black.copy(alpha = 0.055f), shape)
             )
             content()
-            if (pressed) {
+            if (pressed && !nativeMaterial) {
                 Box(
                     Modifier
                         .matchParentSize()

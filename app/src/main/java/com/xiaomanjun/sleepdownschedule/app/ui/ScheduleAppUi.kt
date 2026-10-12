@@ -4757,6 +4757,12 @@ private fun HomeBackgroundBlurLayer(
     // Its alpha can hide the sharp pass without changing the scene shared by foreground glass.
     val clearSceneLayer = rememberGraphicsLayer()
     val frozenBlurLayer = rememberGraphicsLayer()
+    val liveSceneLayer = rememberGraphicsLayer()
+    val latestBlurProgress = rememberUpdatedState(blurProgress)
+    val latestUseFrozenScene = rememberUpdatedState(useFrozenHomeScene)
+    val recordLiveScene by remember {
+        derivedStateOf { !latestUseFrozenScene.value() && latestBlurProgress.value() > 0f }
+    }
     val frozenRecordKey = remember { AtomicReference<Any?>(null) }
     val frozenRecordSize = remember { AtomicReference(IntSize.Zero) }
     val sampleScale = HomeFrozenBlurSampleScale
@@ -4789,13 +4795,18 @@ private fun HomeBackgroundBlurLayer(
                 val step = quantizeHomeBackgroundBlurStep(progress, isClosing)
                 if (frozenHomeScene) {
                     renderEffect = null
+                    liveSceneLayer.renderEffect = null
                     val blurAlpha = homeFrozenBlurAlpha(progress)
                     clearSceneLayer.alpha = if (blurAlpha < 1f) 1f else 0f
                     frozenBlurLayer.alpha = blurAlpha
                     frozenBlurLayer.renderEffect =
                         frozenBlurEffects[step.coerceAtLeast(HomeFrozenBlurMinimumStep)]
                 } else {
-                    renderEffect = liveBlurEffects[step]
+                    // Keep native Views under a neutral parent while personalization is live.
+                    // Blur a full-size recorded layer, as the frozen path already does, instead
+                    // of repeatedly changing the ancestor effect used by COUI's own sampling.
+                    renderEffect = null
+                    liveSceneLayer.renderEffect = liveBlurEffects[step]
                     clearSceneLayer.alpha = 0f
                     frozenBlurLayer.alpha = 0f
                     frozenBlurLayer.renderEffect = null
@@ -4807,7 +4818,12 @@ private fun HomeBackgroundBlurLayer(
                 val frozenHomeScene = useFrozenHomeScene()
                 if (!frozenHomeScene) {
                     frozenRecordKey.set(null)
-                    drawContent()
+                    if (recordLiveScene) {
+                        liveSceneLayer.record { this@drawWithContent.drawContent() }
+                        drawLayer(liveSceneLayer)
+                    } else {
+                        drawContent()
+                    }
                     return@drawWithContent
                 }
 
@@ -5900,6 +5916,7 @@ internal const val PersonalizeCardAlphaSlider = "card-alpha"
 internal const val PersonalizeCardBlurSlider = "card-blur"
 internal const val PersonalizeCardRefractionSlider = "card-refraction"
 private const val PersonalizeNativeCardTintSlider = "native-card-tint"
+private const val PersonalizeNativeCardBlurSlider = "native-card-blur"
 internal const val PersonalizeCardFontSlider = "card-font"
 private const val PersonalizeCardGlassChange = "card-glass"
 private const val PersonalizeCardOutlineLightChange = "card-outline-light"
@@ -6662,7 +6679,10 @@ fun PersonalizePanel(
     val rowDensity = LocalDensity.current
     val rowEasing = remember { CubicBezierEasing(0.22f, 0f, 0.30f, 1f) }
     val weekContentRows = if (mode == HomeMode.Week) 4 else 0
-    val rowEntranceDurationMillis = 580 + weekContentRows * 15
+    val nativeMaterialMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
+    val nativeMaterialActive = nativeMaterialMode?.enabled == true && !AppMaterialPreferences.isSuperPerformance
+    val nativeMaterialRows = if (nativeMaterialMode == null) 0 else if (nativeMaterialActive) 3 else 1
+    val rowEntranceDurationMillis = 580 + (weekContentRows + nativeMaterialRows) * 15
     LaunchedEffect(rowEntranceActive, rowEntranceDurationMillis) {
         if (rowEntranceActive) {
             withFrameNanos { }
@@ -7086,12 +7106,10 @@ fun PersonalizePanel(
                     onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
                 )
                 val superPerformance = AppMaterialPreferences.isSuperPerformance
-                val nativeMaterialMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
-                val nativeMaterialActive = nativeMaterialMode?.enabled == true && !superPerformance
                 val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
                 nativeMaterialMode?.let { material ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        modifier = Modifier.rowEntrance(9 + weekContentRows).fillMaxWidth().heightIn(min = 48.dp)
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -7103,6 +7121,7 @@ fun PersonalizePanel(
                     if (nativeMaterialActive) {
                         PersonalizeValueSlider(
                             sliderKey = PersonalizeNativeCardTintSlider,
+                            modifier = Modifier.rowEntrance(10 + weekContentRows),
                             value = material.tintStrength, valueRange = 0f..1f, backdrop = backdrop,
                             label = { "课程着色强度 ${(it * 100).toInt()}%" },
                             onCommit = { material.onTintStrengthChange(it, true) },
@@ -7113,6 +7132,20 @@ fun PersonalizePanel(
                                 if (!active) material.onPreviewFinished()
                             }, snapValue = 0.5f,
                             onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
+                        )
+                        PersonalizeValueSlider(
+                            sliderKey = PersonalizeNativeCardBlurSlider,
+                            modifier = Modifier.rowEntrance(11 + weekContentRows),
+                            value = material.blurRadiusScale, valueRange = 0f..2f, backdrop = backdrop,
+                            label = { "凝光模糊 ${(it * 100).toInt()}%" },
+                            onCommit = { material.onBlurRadiusScaleChange(it, true) },
+                            onPreviewValueChange = { material.onBlurRadiusScaleChange(it, false) },
+                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
+                            onSliderPreviewActiveChange = { key, active ->
+                                onSliderPreviewActiveChange(key, active)
+                                if (!active) material.onPreviewFinished()
+                            }, snapValue = 1f,
+                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardBlurSlider, it) }
                         )
                     }
                 }
@@ -7126,7 +7159,7 @@ fun PersonalizePanel(
                 }
                 if (!superPerformance && !nativeMaterialActive) PersonalizeValueSlider(
                     sliderKey = PersonalizeCardAlphaSlider,
-                    modifier = Modifier.rowEntrance(9 + weekContentRows),
+                    modifier = Modifier.rowEntrance(9 + weekContentRows + nativeMaterialRows),
                     value = state.config.cardAlpha.coerceIn(minimumCardAlpha, 1f),
                     valueRange = minimumCardAlpha..1f,
                     backdrop = backdrop,
@@ -7158,7 +7191,7 @@ fun PersonalizePanel(
                     val maxCourseCardBlur = courseCardBlurMaximum(state.config.courseCardGlassEnabled)
                     PersonalizeValueSlider(
                         sliderKey = PersonalizeCardBlurSlider,
-                        modifier = Modifier.rowEntrance(10 + weekContentRows),
+                        modifier = Modifier.rowEntrance(10 + weekContentRows + nativeMaterialRows),
                         value = state.config.courseCardBlur.coerceIn(0f, maxCourseCardBlur) /
                             maxCourseCardBlur * 100f,
                         valueRange = 0f..100f,
@@ -7187,7 +7220,7 @@ fun PersonalizePanel(
                 }
                 PersonalizeValueSlider(
                     sliderKey = PersonalizeCardFontSlider,
-                    modifier = Modifier.rowEntrance(11 + weekContentRows),
+                    modifier = Modifier.rowEntrance(11 + weekContentRows + nativeMaterialRows),
                     value = state.config.courseCardFontScale,
                     valueRange = 0.80f..1.35f,
                     backdrop = backdrop,
@@ -7215,7 +7248,7 @@ fun PersonalizePanel(
                 if (mode == HomeMode.Week) {
                     PersonalizeValueSlider(
                         sliderKey = PersonalizeWeekCornerSlider,
-                        modifier = Modifier.rowEntrance(12 + weekContentRows),
+                        modifier = Modifier.rowEntrance(12 + weekContentRows + nativeMaterialRows),
                         value = state.config.weekCardCornerProgress.coerceIn(0f, 1f),
                         valueRange = 0f..1f,
                         backdrop = backdrop,
@@ -7245,7 +7278,7 @@ fun PersonalizePanel(
                     !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isPerformance) {
                     PersonalizeValueSlider(
                         sliderKey = PersonalizeCardRefractionSlider,
-                        modifier = Modifier.rowEntrance(13 + weekContentRows),
+                        modifier = Modifier.rowEntrance(13 + weekContentRows + nativeMaterialRows),
                         value = state.config.courseCardRefractionStrength.coerceIn(0f, 1f),
                         valueRange = 0f..1f,
                         backdrop = backdrop,
@@ -7277,7 +7310,7 @@ fun PersonalizePanel(
                         .personalizePreviewVisibility(previewSliderKey, previewProgress)
                 )
                 if (!nativeMaterialActive) Row(
-                    modifier = Modifier.rowEntrance(14 + weekContentRows)
+                    modifier = Modifier.rowEntrance(14 + weekContentRows + nativeMaterialRows)
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .personalizePreviewVisibility(previewSliderKey, previewProgress),
@@ -7312,7 +7345,7 @@ fun PersonalizePanel(
                 }
                 if (!nativeMaterialActive && state.config.courseCardGlassEnabled && !glassLocked) {
                     Row(
-                        modifier = Modifier.rowEntrance(15 + weekContentRows)
+                        modifier = Modifier.rowEntrance(15 + weekContentRows + nativeMaterialRows)
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
@@ -7334,7 +7367,7 @@ fun PersonalizePanel(
                     }
                 } else if (!nativeMaterialActive) {
                     Row(
-                        modifier = Modifier.rowEntrance(15 + weekContentRows)
+                        modifier = Modifier.rowEntrance(15 + weekContentRows + nativeMaterialRows)
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
@@ -7357,7 +7390,7 @@ fun PersonalizePanel(
                     }
                 }
                 Row(
-                    modifier = Modifier.rowEntrance(16 + weekContentRows)
+                    modifier = Modifier.rowEntrance(16 + weekContentRows + nativeMaterialRows)
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .personalizePreviewVisibility(previewSliderKey, previewProgress),
