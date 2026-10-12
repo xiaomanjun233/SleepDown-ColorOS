@@ -53,6 +53,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -208,26 +209,56 @@ fun QuickScheduleSettingsSheets(
     suppressDetailedButton: Boolean = false,
     onDetailedSettings: (Int, Rect, ((() -> Unit) -> Unit)) -> Unit
 ) {
-    var retainedDraft by remember { mutableStateOf(draft) }
+    // One composition lifetime per opening, including the full exit. Keeping the sheet's
+    // Animatables and gesture state mounted in the home page would carry them into a reopen;
+    // keying form fields on nullable draft also cleared them while that exit was still drawing.
+    var openingDraft by remember { mutableStateOf(draft) }
+    if (draft != null && draft.scheduleId != openingDraft?.scheduleId) openingDraft = draft
+    val opening = openingDraft ?: return
+    key(opening.scheduleId) {
+        QuickScheduleSettingsSheetSession(
+            initialDraft = opening,
+            draft = draft,
+            config = config,
+            backdrop = backdrop,
+            onDraftChange = onDraftChange,
+            onDismiss = onDismiss,
+            onDismissFinished = {
+                openingDraft = null
+                onDismissFinished()
+            },
+            onSave = onSave,
+            suppressDetailedButton = suppressDetailedButton,
+            onDetailedSettings = onDetailedSettings
+        )
+    }
+}
+
+@Composable
+private fun QuickScheduleSettingsSheetSession(
+    initialDraft: QuickScheduleDraft,
+    draft: QuickScheduleDraft?,
+    config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
+    onDraftChange: (QuickScheduleDraft) -> Unit,
+    onDismiss: () -> Unit,
+    onDismissFinished: () -> Unit,
+    onSave: (QuickScheduleDraft, () -> Unit) -> Unit,
+    suppressDetailedButton: Boolean,
+    onDetailedSettings: (Int, Rect, ((() -> Unit) -> Unit)) -> Unit
+) {
+    var retainedDraft by remember { mutableStateOf(initialDraft) }
     var saving by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var dateYear by remember { mutableIntStateOf(LocalDate.now().year) }
     var dateMonth by remember { mutableIntStateOf(LocalDate.now().monthValue) }
     var dateDay by remember { mutableIntStateOf(LocalDate.now().dayOfMonth) }
-    var totalWeeksText by remember(draft?.scheduleId) { mutableStateOf(draft?.totalWeeks?.toString().orEmpty()) }
-    var currentWeekText by remember(draft?.scheduleId) { mutableStateOf(draft?.currentWeek?.toString().orEmpty()) }
-    var detailButtonBounds by remember(draft?.scheduleId) { mutableStateOf<Rect?>(null) }
-    var detailLaunching by remember(draft?.scheduleId) { mutableStateOf(false) }
+    var totalWeeksText by remember { mutableStateOf(initialDraft.totalWeeks.toString()) }
+    var currentWeekText by remember { mutableStateOf(initialDraft.currentWeek.toString()) }
+    var detailButtonBounds by remember { mutableStateOf<Rect?>(null) }
+    var detailLaunching by remember { mutableStateOf(false) }
 
-    LaunchedEffect(draft?.scheduleId) {
-        if (draft != null) {
-            retainedDraft = draft
-            totalWeeksText = draft.totalWeeks.toString()
-            currentWeekText = draft.currentWeek.toString()
-        }
-    }
-
-    fun latestDraft(): QuickScheduleDraft? = retainedDraft ?: draft
+    fun latestDraft(): QuickScheduleDraft? = retainedDraft
 
     fun commitDraft(next: QuickScheduleDraft) {
         // Update the sheet-owned source of truth before notifying its parent. Otherwise another
@@ -282,16 +313,13 @@ fun QuickScheduleSettingsSheets(
             )
         },
         onDismissRequest = { if (!saving) saveAndDismiss() },
-        onDismissFinished = {
-            retainedDraft = null
-            onDismissFinished()
-        },
+        onDismissFinished = onDismissFinished,
         allowDismiss = !saving,
         backgroundColor = Color.Transparent,
         modifier = Modifier.heightIn(max = 590.dp),
         surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
     ) {
-        retainedDraft?.let { value ->
+        retainedDraft.let { value ->
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -422,11 +450,9 @@ fun QuickScheduleSettingsSheets(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onGloballyPositioned { coordinates ->
-                                // The QuickSheet lives inside an independent Miuix Dialog window,
-                                // so localToRoot would resolve against that dialog root. Use
-                                // window coordinates instead — they are shared with the main
-                                // window the destination overlay renders in — and let the caller
-                                // normalize them against the recorded home root.
+                                // The root Scaffold hosts this sheet after the page underlay.
+                                // Use window coordinates for the cross-Activity anchor; the
+                                // caller normalizes them against the captured home frame.
                                 val position = coordinates.positionInWindow()
                                 val size = coordinates.size
                                 detailButtonBounds = Rect(

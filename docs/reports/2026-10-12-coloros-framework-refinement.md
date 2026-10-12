@@ -49,6 +49,8 @@ ColorOS 现在在后台从原壁纸独立提取色相，关闭 Palette 的默认
 
 用户确认是整体缩小、底部悬空。实际依赖为 `D:/Android studio/CourseSchedule/miuix-local`：`OverlayBottomSheet` 外边距默认为 0、底部圆角为 0，宿主是首页根 Scaffold 的全屏后绘制节点，最大宽度 640dp。业务仅限制高度为 590dp。尚未确认是首次打开还是从详细设置返回后发生，也未取得故障帧或布局信息；不能将其归因为内容边距。半屏菜单、日期子菜单及详细设置交接尚未修改，这一问题未解决。
 
+10 月 13 日用户补充为第二次打开时出现；后续生命周期修订与验收边界见[重复打开记录](2026-10-13-quick-sheet-reopen.md)。
+
 ## 验证
 
 - 10 项定向测试通过：`ColorOsDockAccentTest` 3 项、`ColorOsDockCompositionTest` 3 项、`ColorOsAlertSlotsTest` 4 项，0 失败。测试证明暗色原图可保留色相、原生模式连续预览只更新订阅者、Dock 宿主不额外提交、已有弹窗回调映射正确。
