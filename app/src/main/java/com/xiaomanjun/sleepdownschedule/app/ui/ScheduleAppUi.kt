@@ -1389,8 +1389,6 @@ fun CourseScheduleAppUi(
         }
     }
     val wallpaperImages by rememberHomeWallpaperImages(visualState.config)
-    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.coloros
-        .rememberColorOsDockAccent(wallpaperImages)
     val colorOsOverflowActions = remember { mutableStateOf<List<AddMenuAction>>(emptyList()) }
     val homeWallpaperRecordKey = remember { mutableStateOf<Any?>(null) }
     val updateHomeWallpaperRecordKey: (Any?) -> Unit = remember {
@@ -1410,6 +1408,16 @@ fun CourseScheduleAppUi(
         )
     }
     val appDarkTheme = appUsesDarkTheme(visualState.config)
+    val colorOsAccentBackground = remember(homeReadabilityContext, appDarkTheme) {
+        val root = homeReadabilityContext.rootSize
+        val colors = sampleVisibleWallpaperColors(homeReadabilityContext,
+            Rect(0f, root.height * 0.80f, root.width.toFloat(), root.height.toFloat()), columns = 9, rows = 3)
+        if (colors.isNullOrEmpty()) (if (appDarkTheme) ComposeColor.Black else ComposeColor.White).toArgb()
+        else ComposeColor(colors.map { it.red }.average().toFloat(), colors.map { it.green }.average().toFloat(),
+            colors.map { it.blue }.average().toFloat()).toArgb()
+    }
+    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.coloros
+        .rememberColorOsDockAccent(wallpaperImages, colorOsAccentBackground)
     val adaptiveGlassState = rememberFallbackAdaptiveGlassState(visualState.config)
     val homeChromeHasWallpaper = visualState.config.hasAnyWallpaper()
     val homeChromeForeground = adaptiveGlassState.contentColor.toArgb().takeIf { homeChromeHasWallpaper }

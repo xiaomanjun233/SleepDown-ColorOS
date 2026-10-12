@@ -126,7 +126,7 @@ internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier):
     val effectiveDark = style?.dark ?: dark
     val native = rememberNativeContext(effectiveDark) ?: return false
     val host = LocalContext.current
-    val accent = dockAccent(native.first, native.second, LocalColorOsDockAccent.current)
+    val accent = colorOsAccentForWhiteIcon(dockAccent(native.first, native.second, LocalColorOsDockAccent.current))
     val fab = remember(native, host) {
         ColorOsNativeUi.prepare("create the native FAB return endpoint") {
             createNativeFab(native.first, native.second, host, accent, style?.weatherMaterial == true, style?.foreground, null)
@@ -177,7 +177,7 @@ internal fun ColorOsParallelHomeDock(
     val canOpen = rememberUpdatedState(selectedIndex < 2 && !buttonHidden)
     val returnLayer = rememberGraphicsLayer()
     val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
-    val fabColor = accent
+    val fabColor = colorOsAccentForWhiteIcon(accent)
     val returnRecorded = remember(native, effectiveDark, fabColor, style, density.density) { AtomicBoolean(false) }
     val group = remember(native, host, composeRoot) {
         ColorOsNativeUi.prepare("create the native 3+1 dock") {
