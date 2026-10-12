@@ -2,14 +2,19 @@ package com.xiaomanjun.sleepdownschedule.coloros
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.ColorUtils
+import androidx.palette.graphics.Palette
 import com.xiaomanjun.sleepdownschedule.core.performance.HomeWallpaperImages
-import com.xiaomanjun.sleepdownschedule.glass.ui.DefaultCourseCardPalette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Only home dock consumers use this accent; toolbar/search spotlights keep their native color. */
 internal val LocalColorOsDockAccent = compositionLocalOf<Int?> { null }
@@ -26,24 +31,30 @@ internal fun rememberColorOsHomeAccents(images: HomeWallpaperImages, background:
     val host = LocalContext.current
     val source = remember(host) { ColorOsNativeUi.source(host) } ?: return null
     val native = rememberNativeContext(dark = false) ?: return null
-    return remember(images.source, images.representativeColors, background, native) {
+    val wallpaperAccent by produceState<Int?>(null, images.source) {
+        value = withContext(Dispatchers.Default) { colorOsWallpaperAccent(images.source) }
+    }
+    return remember(wallpaperAccent, images.source, background, native) {
         val fallback = dockAccent(source, native.second, null)
-        if (images.source == null || images.representativeColors == DefaultCourseCardPalette) {
-            return@remember ColorOsHomeAccents(fallback, fallback)
-        }
-        val seed = images.representativeColors.firstOrNull { color ->
-            val hsv = FloatArray(3)
-            Color.colorToHSV(color.toInt(), hsv)
-            hsv[1] >= 0.16f && hsv[2] >= 0.22f
-        } ?: return@remember ColorOsHomeAccents(fallback, colorOsContrastingAccent(fallback, background))
-        val hsv = FloatArray(3)
-        Color.colorToHSV(seed.toInt(), hsv)
-        // Keep the wallpaper hue while leaving enough contrast for white plus and small labels.
-        hsv[1] = hsv[1].coerceIn(0.50f, 0.85f)
-        hsv[2] = hsv[2].coerceIn(0.60f, 0.80f)
-        val button = Color.HSVToColor(hsv)
+        if (images.source == null) return@remember ColorOsHomeAccents(fallback, fallback)
+        val button = wallpaperAccent ?: fallback
         ColorOsHomeAccents(button, colorOsContrastingAccent(button, background))
     }
+}
+
+/** Course palettes discard dark swatches; chrome must extract its own hue before brightening it. */
+internal fun colorOsWallpaperAccent(bitmap: Bitmap?): Int? {
+    if (bitmap == null || bitmap.isRecycled) return null
+    val hsv = FloatArray(3)
+    val seed = Palette.from(bitmap).clearFilters().maximumColorCount(12).resizeBitmapArea(96 * 96)
+        .generate().swatches.sortedByDescending { it.population }.firstOrNull {
+            Color.colorToHSV(it.rgb, hsv)
+            hsv[1] >= 0.16f && hsv[2] >= 0.04f
+        } ?: return null
+    Color.colorToHSV(seed.rgb, hsv)
+    hsv[1] = hsv[1].coerceIn(0.50f, 0.85f)
+    hsv[2] = hsv[2].coerceIn(0.60f, 0.80f)
+    return Color.HSVToColor(hsv)
 }
 
 /** Preserve wallpaper hue; adjust lightness against the visible, brightness-adjusted backdrop. */

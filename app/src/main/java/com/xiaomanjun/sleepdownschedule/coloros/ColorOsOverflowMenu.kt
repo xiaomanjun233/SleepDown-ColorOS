@@ -5,11 +5,8 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.View
-import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.PopupWindow
-import android.widget.TextView
-import android.widget.ImageView
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.isSpecified
@@ -36,7 +33,6 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     init {
         source.bindFollowLightIntensity(window.contentView, multiplier = 3f, afterMaterialApplied = {
             if (neutral) applyButtonMaterial()
-            applyForeground(window.contentView)
         })
         type.getMethod("setUseBackgroundBlur", Boolean::class.javaPrimitiveType).invoke(window, true)
         // WindowManager resolves animation resources against our package, not the vendor APK.
@@ -65,26 +61,6 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
             override fun onViewAttachedToWindow(view: View) = Unit
             override fun onViewDetachedFromWindow(view: View) { anchor?.post { runPendingAction() } }
         })
-    }
-
-    private fun applyForeground(view: View, textColor: Int? = foreground, iconColor: Int? = textColor) {
-        if (view is TextView) {
-            textColor?.let(view::setTextColor)
-            iconColor?.let { color -> view.compoundDrawablesRelative.forEach { it?.mutate()?.setTint(color) } }
-        }
-        // COUI's adapter applies an ImageView tint after binding the supplied drawable.
-        // Override that tint as well, after the native menu has attached and laid out.
-        if (view is ImageView && iconColor != null) {
-            view.clearColorFilter()
-            view.imageTintList = ColorStateList.valueOf(iconColor)
-            view.drawable?.mutate()?.setTint(iconColor)
-        }
-        if (view is ViewGroup) for (index in 0 until view.childCount) {
-            val child = view.getChildAt(index)
-            val action = if (view is AdapterView<*>) actions.getOrNull(view.getPositionForView(child)) else null
-            applyForeground(child, action?.textTint?.takeIf { it.isSpecified }?.toArgb() ?: textColor,
-                action?.iconTint?.takeIf { it.isSpecified }?.toArgb() ?: iconColor)
-        }
     }
 
     private fun applyButtonMaterial() {
@@ -122,12 +98,20 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
         actions = entries
         val constructor = itemType.getConstructor(Drawable::class.java, String::class.java,
             Boolean::class.javaPrimitiveType)
+        val defaultColor = foreground?.let(ColorStateList::valueOf)
+            ?: source.color(context, "couiColorLabelPrimary")
         val items = entries.map { action ->
             val icon = action.iconRes?.let { ContextCompat.getDrawable(host, colorOsHomeIconResource(it))?.mutate() }
             icon?.setTintList(action.iconTint?.takeIf { it.isSpecified }?.toArgb()?.let(ColorStateList::valueOf)
-                ?: foreground?.let(ColorStateList::valueOf)
-                ?: source.color(context, "couiColorLabelPrimary"))
-            constructor.newInstance(icon, action.label, true)
+                ?: defaultColor)
+            constructor.newInstance(icon, action.label, true).also { item ->
+                // Both native ListView and RecyclerView adapters honor these item properties.
+                // Disable their forced tint so recycling cannot erase a destructive icon color.
+                itemType.getMethod("setForceTint", Int::class.javaPrimitiveType).invoke(item, 0)
+                itemType.getMethod("setTitleColorList", ColorStateList::class.java).invoke(item,
+                    action.textTint?.takeIf { it.isSpecified }?.toArgb()?.let(ColorStateList::valueOf)
+                        ?: defaultColor)
+            }
         }
         type.getMethod("setItemList", List::class.java).invoke(window, items)
         type.getMethod("show", View::class.java).invoke(window, anchor)

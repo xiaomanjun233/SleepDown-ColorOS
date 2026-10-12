@@ -5641,9 +5641,10 @@ fun AddMenuLiquidItem(
     itemHeight: Dp,
     highlighted: Boolean,
     modifier: Modifier = Modifier,
-    compactCapsule: Boolean = false
+    compactCapsule: Boolean = false,
+    foreground: ComposeColor = glassForegroundColor(config)
 ) {
-    val baseText = glassForegroundColor(config)
+    val baseText = foreground
     val selectedColor = ComposeColor(0xFF8E8E93).copy(
         alpha = if (glassUsesLightStyle(config)) 0.20f else 0.28f
     )

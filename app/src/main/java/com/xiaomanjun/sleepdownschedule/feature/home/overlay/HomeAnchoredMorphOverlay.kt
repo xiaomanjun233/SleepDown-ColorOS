@@ -2751,6 +2751,7 @@ internal fun HomeAddMenuMorphPanel(
                             action = action,
                             itemHeight = actionItemHeight,
                             compactCapsule = compactActions,
+                            foreground = textColor,
                             modifier = if (!showModeSwitch) Modifier.semantics(mergeDescendants = true) {
                                 onClick(action.label) {
                                     if (interactive) action.onClick()
