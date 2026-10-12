@@ -3167,6 +3167,30 @@ fun CourseScheduleAppUi(
         }
         }
 
+    } // end course/frozen locals
+
+    // Capture the complete page, including its native Dock, at full size before the outer
+    // shortcut blur downsamples it. Native material corners must not first render into the
+    // reduced blur pass. Keep inputs outside course-only locals to avoid native recomposition.
+    if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.NativeHomeDockChrome(
+        visible = dockVisible,
+        parallel = parallelPhoneNavigation,
+        selectedIndex = dockSelectedIndex,
+        dark = if (screen is Screen.Home) appDarkTheme else appUsesDarkTheme(state.config),
+        alignment = dockConfig.dockAlignment,
+        buttonHidden = dockButtonHidden,
+        onSelect = dockSelect,
+        onHome = ordinaryDockHome,
+        onOpenMenu = dockOpenMenu,
+        phase = startupPhase,
+        fallback = {
+            HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
+                chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
+        },
+        modifier = Modifier.align(Alignment.BottomStart)
+    )
+    } // end cached page content, including native Dock
+
         // This control intentionally lives outside the recorded home layer. It can be visible
         // while the real home is pre-captured without becoming part of its own preview bitmap.
         if (screen is Screen.Home && !homeAdaptiveMetrics.isLargeScreen) {
@@ -3301,28 +3325,6 @@ fun CourseScheduleAppUi(
             // that does not contain the later quick-settings sheet consumer.
             modifier = Modifier.glassBackdropProducer(pickerSceneBackdrop)
         )
-    } // end course/frozen locals
-    } // end cached course/page content
-
-    // Dock belongs to the page underlay and is included in its retained blur scene.
-    // Keep it outside course-only locals/capture so shortcut phases do not update native UI.
-    if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.NativeHomeDockChrome(
-        visible = dockVisible,
-        parallel = parallelPhoneNavigation,
-        selectedIndex = dockSelectedIndex,
-        dark = if (screen is Screen.Home) appDarkTheme else appUsesDarkTheme(state.config),
-        alignment = dockConfig.dockAlignment,
-        buttonHidden = dockButtonHidden,
-        onSelect = dockSelect,
-        onHome = ordinaryDockHome,
-        onOpenMenu = dockOpenMenu,
-        phase = startupPhase,
-        fallback = {
-            HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
-                chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
-        },
-        modifier = Modifier.align(Alignment.BottomStart)
-    )
     } // end HomeBackgroundBlurLayer
     } // end HomeBackgroundZoomLayer
     } // end assistant background depth
