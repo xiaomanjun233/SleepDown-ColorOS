@@ -1,0 +1,20 @@
+package com.xiaomanjun.sleepdownschedule.core.ui.designsystem
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+
+/** Vendor implementation is supplied by app assembly, keeping glass independent of features. */
+internal data class NativeCourseCardRequest(
+    val modifier: Modifier, val shape: Shape, val dark: Boolean, val color: Color,
+    val tintAlpha: Float, val blurRadiusPx: Float, val renderSurface: Boolean,
+    val materialVisible: Boolean, val onClick: (() -> Unit)?
+)
+
+internal data class NativeCourseCardMode(val enabled: Boolean, val onEnabledChange: (Boolean) -> Unit)
+
+internal val LocalNativeCourseCardMode = compositionLocalOf<NativeCourseCardMode?> { null }
+internal val LocalNativeCourseCardRenderer =
+    compositionLocalOf<(@Composable (NativeCourseCardRequest, @Composable () -> Unit) -> Boolean)?> { null }

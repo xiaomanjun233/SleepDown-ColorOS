@@ -7231,6 +7231,23 @@ fun PersonalizePanel(
                         backdrop = backdrop
                     )
                 }
+                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current?.let { mode ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
+                        LiquidControlToggle(checked = mode.enabled, compact = true,
+                            onCheckedChange = mode.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
+                    }
+                    Text("保留课程配色，使用系统通透材质与光感描边",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = personalizePanelForegroundColor(state.config).copy(alpha = 0.60f),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                }
                 if (glassLocked) {
                     Text(
                         if (superPerformance) "超级性能模式下不可用：液态玻璃、折射、轮廓光与高斯模糊。退出后恢复原参数。"

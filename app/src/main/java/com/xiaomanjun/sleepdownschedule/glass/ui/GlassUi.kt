@@ -1083,6 +1083,21 @@ fun CourseGlassCard(
         occlusionPhase == CourseGlassOcclusionPhase.PostCloseRestore ||
             occlusionPhase == CourseGlassOcclusionPhase.Revealing
     val previewState = LocalPersonalizationPreview.current
+    if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current?.enabled == true) {
+        val base = if (muted) MutedCourseLightColor else courseCardBaseColor(config, course)
+        val alpha = courseGlassTintAlpha(previewState?.cardAlpha ?: config.cardAlpha, 1f, config.hasAnyWallpaper())
+        val blurPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+            (blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur).dp.toPx()
+        }
+        val background = rememberCourseTextBackground(base, alpha, true, blurPx, false, false,
+            flatBackground = homeFlatBackgroundColor(appUsesDarkTheme(config)).takeUnless { config.hasAnyWallpaper() },
+            ready = true, cardBounds = { null })
+        val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer.current
+        if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
+                modifier, shape, appUsesDarkTheme(config), base, alpha, blurPx,
+                renderSurface, drawMaterialNodes, onClick
+            )) { CompositionLocalProvider(LocalCourseTextBackground provides background) { content() } } == true) return
+    }
     val glassBackdrop = if (
         config.courseCardGlassEnabled &&
         config.hasAnyWallpaper() &&

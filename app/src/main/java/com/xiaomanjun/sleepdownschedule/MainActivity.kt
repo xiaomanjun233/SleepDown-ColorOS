@@ -208,7 +208,11 @@ fun CourseScheduleTheme(
             com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeAlertRenderer provides
                 { request -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsAlertDialog(request) },
             com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogButtonRenderer provides
-                { request -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsDialogButton(request) }
+                { request -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsDialogButton(request) },
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode provides
+                com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.rememberColorOsCourseCardMode(),
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer provides
+                { request, body -> com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsCourseCard(request, body) }
         ) { Surface(modifier = Modifier.fillMaxSize(), content = content) }
     }
 }
