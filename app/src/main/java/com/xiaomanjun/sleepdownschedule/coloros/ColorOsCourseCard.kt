@@ -43,6 +43,10 @@ private const val CourseTintStrength = "tint_strength"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
 private const val BlurType = "com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType"
 private const val CourseBlurPreset = "TYPE_CONTENT_TRANSPARENT_BUTTON"
+// BaseBottomFloatingMenuView's RenderNode stroke and follow-light presets. Geometry still
+// comes from the course's outline, never the Dock's capsule corner radius.
+private const val CourseStrokePreset = "TYPE_FRAMEWORK_CAPSULE_3"
+private const val CourseLightPreset = "TYPE_OPAQUE_MEDIUM_2"
 private const val StrokeType = "com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType"
 private const val LightDrawable = "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable"
 private const val LightType = "com.coui.appcompat.spotlight.COUISpotLightEffect\$SpotLightType"
@@ -55,7 +59,7 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
     val available = remember(source) {
         ColorOsNativeUi.prepare("check course card material capability") {
             source.load(MaterialEffect).getMethod("canApplyBackgroundRenderEffect").invoke(null) == true &&
-                source.load(StrokeType).getField("TYPE_CONTENT_CAPSULE_1").get(null) != null &&
+                source.load(StrokeType).getField(CourseStrokePreset).get(null) != null &&
                 source.load(MaterialEffect).getMethod("setViewStrokeEffect", View::class.java, source.load(StrokeType)) != null &&
                 source.load(LightDrawable).getMethod("onTouchEvent", MotionEvent::class.java) != null
         } == true
@@ -163,7 +167,8 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
         foreground = light
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
-            .invoke(light, context, type.getField("TYPE_TRANSLUCENT_LARGE_1").get(null))
+            .invoke(light, context, type.getField(CourseLightPreset).get(null))
+        source.setFollowLightIntensity(light)
     }
 
     fun configure(value: NativeCourseCardRequest, density: Density, direction: LayoutDirection) {
@@ -211,12 +216,12 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
         val blur = value.materialVisible && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
         val stroke = value.materialVisible && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
         val glow = value.materialVisible && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
-        // Native content-glass defaults own blur, color filters and highlights. The only
-        // application paint is the course gradient in onDraw, independent of legacy settings.
+        // Keep the content-glass blur and course gradient; use the Dock's native edge/light
+        // presets for stronger top/bottom highlights, without changing the card's outline.
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
         setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
         setStroke.invoke(null, this, strokeType.getField(
-            if (stroke) "TYPE_CONTENT_CAPSULE_1" else "TYPE_NO_EFFECT").get(null))
+            if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
         invalidate()
     }

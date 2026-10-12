@@ -7086,11 +7086,6 @@ fun PersonalizePanel(
                         LiquidControlToggle(checked = material.enabled, compact = true,
                             onCheckedChange = material.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
                     }
-                    Text("保留课程配色，使用系统通透材质与轮廓光",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = personalizePanelForegroundColor(state.config).copy(alpha = 0.60f),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress))
                     if (nativeMaterialActive) {
                         PersonalizeValueSlider(
                             sliderKey = PersonalizeNativeCardTintSlider,
