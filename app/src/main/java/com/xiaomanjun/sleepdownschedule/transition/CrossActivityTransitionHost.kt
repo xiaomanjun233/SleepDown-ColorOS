@@ -69,7 +69,8 @@ fun CrossActivityTransitionHost(
                 .graphicsLayer { clip = false }
         ) {
             if (legacyProfile is LegacyTransitionProfile.Depth ||
-                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.isLandscapeMenuWindow() ||
+                (legacyProfile != LegacyTransitionProfile.Page &&
+                    com.xiaomanjun.sleepdownschedule.core.ui.designsystem.isLandscapeMenuWindow()) ||
                 routeId == TransitionRouteId.TabletHomeToCourseManagement ||
                 routeId == TransitionRouteId.TabletHomeToEduImport
             ) {
@@ -93,6 +94,7 @@ fun CrossActivityTransitionHost(
                 sourceSnapshot = openingAnchor?.bitmap,
                 collapseSnapshot = returnAnchor?.bitmap,
                 motionStyle = profile?.profileId.toMotionStyle(),
+                animateWithoutAnchor = legacyProfile == LegacyTransitionProfile.Page,
                 destinationFirstOpening = profile?.destinationFirstOpening == true,
                 openingMode = openingMode,
                 openingReady = openingReady,

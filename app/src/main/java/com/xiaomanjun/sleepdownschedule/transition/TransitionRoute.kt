@@ -52,6 +52,8 @@ sealed interface LegacyTransitionProfile {
     ) : LegacyTransitionProfile
 
     data object PlatformDefault : LegacyTransitionProfile
+    /** Project Compose detail-page motion with no source control to morph from. */
+    data object Page : LegacyTransitionProfile
     data object TaskReturn : LegacyTransitionProfile
 }
 
@@ -91,12 +93,7 @@ object TransitionRouteCatalog {
         TransitionRouteSpec(
             TransitionRouteId.HomeMenuToCourseManagement,
             "$PackageName.feature.experimental.colorosui.ColorOsCourseManagementActivity",
-            LegacyTransitionProfile.Depth(
-                R.anim.schedule_depth_enter,
-                R.anim.schedule_depth_exit,
-                R.anim.schedule_depth_pop_enter,
-                R.anim.schedule_depth_pop_exit
-            )
+            LegacyTransitionProfile.Page
         ),
         TransitionRouteSpec(
             id = TransitionRouteId.HomeToCourseManagement,
