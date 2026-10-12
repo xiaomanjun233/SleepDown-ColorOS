@@ -47,6 +47,7 @@ internal fun ColorOsSchoolSearchField(
         ColorOsNativeUi.prepare("create the native school search bar") {
             val type = source.load(SearchBar)
             val view = type.getConstructor(Context::class.java).newInstance(context) as ViewGroup
+            source.bindFollowLightIntensity(view)
             type.getMethod("setUseMaterialEffectAttr", Int::class.javaPrimitiveType)
                 .invoke(view, type.getField("FOLLOW_SYSTEM").getInt(null))
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(view,

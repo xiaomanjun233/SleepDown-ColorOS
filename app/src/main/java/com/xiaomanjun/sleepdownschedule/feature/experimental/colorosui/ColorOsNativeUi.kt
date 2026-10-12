@@ -12,8 +12,14 @@ import android.util.TypedValue
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import com.xiaomanjun.sleepdownschedule.BuildConfig
 import java.lang.reflect.Proxy
+import java.lang.reflect.Field
+import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.WeakHashMap
 
 /** Loads code and resources from the same installed system APK; no vendor code is bundled. */
@@ -72,7 +78,9 @@ internal object ColorOsNativeUi {
         private val materialManager by lazy { materialManagerType.getField("INSTANCE").get(null) }
         private var materialObserverRegistered = false
         private var materialConfiguration: Configuration? = null
-        private val dockLightIntensity = WeakHashMap<Any, Pair<Float, Float>>()
+        private data class LightRange(val start: Float, val end: Float, var appliedStart: Float, var appliedEnd: Float)
+        private val followLightRanges = WeakHashMap<Any, LightRange>()
+        private val followLightFields = HashMap<Class<*>, List<Field>>()
 
         fun load(name: String): Class<*> = native.classLoader.loadClass(name)
         fun resource(name: String, type: String): Int = native.resources.getIdentifier(name, type, packageName)
@@ -96,17 +104,107 @@ internal object ColorOsNativeUi {
                 Color.green(accent) / 255f,
                 Color.blue(accent) / 255f)
             if (owner is View && !owner.isAttachedToWindow) return
-            val shader = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
-                ?: return
-            val range = dockLightIntensity.getOrPut(light) {
-                val type = shader.javaClass
-                type.getDeclaredField("mStartIntensity").apply { isAccessible = true }.getFloat(shader) to
-                    type.getDeclaredField("mEndIntensity").apply { isAccessible = true }.getFloat(shader)
-            }
-            // Cache the original range so repeated theme/selection refreshes do not multiply it.
-            // Only Dock hosts call this helper; retain native fade, radius and touch springs.
+            setFollowLightIntensity(light)
+        }
+
+        /** All follow lights use 2x native intensity; color and motion remain native. */
+        fun setFollowLightIntensity(light: Any) {
+            val shader = if (light.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffect") light
+                else light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light) ?: return
+            val type = shader.javaClass
+            val start = type.getDeclaredField("mStartIntensity").apply { isAccessible = true }.getFloat(shader)
+            val end = type.getDeclaredField("mEndIntensity").apply { isAccessible = true }.getFloat(shader)
+            val previous = followLightRanges[shader]
+            val range = if (previous != null && start == previous.appliedStart && end == previous.appliedEnd) previous
+                else LightRange(start, end, start, end).also { followLightRanges[shader] = it }
+            val targetStart = range.start * 2f
+            val targetEnd = range.end * 2f
+            if (start == targetStart && end == targetEnd) return
             light.javaClass.getMethod("setIntensityRange", Float::class.javaPrimitiveType,
-                Float::class.javaPrimitiveType).invoke(light, range.first, range.second * 1.5f)
+                Float::class.javaPrimitiveType).invoke(light, targetStart, targetEnd)
+            range.appliedStart = targetStart
+            range.appliedEnd = targetEnd
+        }
+
+        private fun boostFollowLights(root: View, delegate: Any?) {
+            val visited = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
+            fun visit(owner: Any?) {
+                if (owner == null || !visited.add(owner)) return
+                if (owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable" ||
+                    owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffect") {
+                    setFollowLightIntensity(owner)
+                    return
+                }
+                val fields = followLightFields.getOrPut(owner.javaClass) {
+                    buildList {
+                        var type: Class<*>? = owner.javaClass
+                        while (type != null) {
+                            if (type.name.startsWith("com.coui.")) addAll(type.declaredFields.filter { field ->
+                                !Modifier.isStatic(field.modifiers) && !field.type.isPrimitive &&
+                                    (field.name.contains("SpotLight", true) ||
+                                        field.type.name.contains("ToolbarMaterialEffectDelegate"))
+                            }.onEach { it.isAccessible = true })
+                            type = type.superclass
+                        }
+                    }
+                }
+                fields.forEach { visit(it.get(owner)) }
+                if (owner is View) {
+                    visit(owner.foreground)
+                    visit(owner.background)
+                    if (owner is ViewGroup) for (index in 0 until owner.childCount) visit(owner.getChildAt(index))
+                }
+            }
+            visit(root)
+            visit(delegate)
+        }
+
+        /** One pass after attach/layout or material changes, never an animation-frame poll. */
+        fun bindFollowLightIntensity(root: View, delegate: Any? = null) {
+            val listenerType = load("com.coui.appcompat.OnMaterialStateChangeListener")
+            var pending: ViewTreeObserver.OnPreDrawListener? = null
+            var observer: ViewTreeObserver? = null
+            var registered = false
+            fun cancelPending() {
+                pending?.let { listener -> observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener) }
+                pending = null
+                observer = null
+            }
+            fun schedule() {
+                if (!root.isAttachedToWindow || pending != null) return
+                val tree = root.viewTreeObserver
+                observer = tree
+                pending = ViewTreeObserver.OnPreDrawListener {
+                    cancelPending()
+                    prepare("adjust native follow light intensity") { boostFollowLights(root, delegate) }
+                    true
+                }.also { tree.addOnPreDrawListener(it) }
+                root.invalidate()
+            }
+            val stateListener = listener(listenerType.name) { name, _ ->
+                if (name == "onMaterialStateChange") schedule()
+                null
+            }
+            fun attach() {
+                if (!registered) {
+                    materialManagerType.getMethod("addOnMaterialStateChangedListener", listenerType)
+                        .invoke(materialManager, stateListener)
+                    registered = true
+                }
+                schedule()
+            }
+            root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) = attach()
+                override fun onViewDetachedFromWindow(view: View) {
+                    cancelPending()
+                    if (registered) {
+                        materialManagerType.getMethod("removeOnMaterialStateChangedListener", listenerType)
+                            .invoke(materialManager, stateListener)
+                        registered = false
+                    }
+                }
+            })
+            if (root.isAttachedToWindow) attach()
         }
 
         fun themedContext(host: Context, dark: Boolean): Context {

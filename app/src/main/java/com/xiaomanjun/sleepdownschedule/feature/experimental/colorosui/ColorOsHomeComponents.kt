@@ -149,6 +149,7 @@ internal fun createNativeHomeDock(
     type.getMethod("setItemsTitleTextColor", ColorStateList::class.java).invoke(bar, iconColors)
     bar.clipChildren = false
     bar.clipToPadding = false
+    source.bindFollowLightIntensity(bar)
     return NativeDock(bar, type.getMethod("getSelectedItemId"),
         type.getMethod("setSelectedItemId", Int::class.javaPrimitiveType), setListener, listener,
         icons, source, context, accent).also { dock ->
@@ -293,6 +294,7 @@ internal fun ColorOsHomeIconButton(
                 .getField("TYPE_DEFAULT_BLUR").getInt(null)
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(effect, materialType)
             NativeIconButton(view, sizedIcon, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
+                source.bindFollowLightIntensity(view, effect)
                 view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                     override fun onViewAttachedToWindow(view: View) { view.post { button.refreshAppearance() } }
                     override fun onViewDetachedFromWindow(view: View) = Unit

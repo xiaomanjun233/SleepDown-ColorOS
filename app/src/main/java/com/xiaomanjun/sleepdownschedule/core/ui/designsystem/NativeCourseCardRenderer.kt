@@ -5,15 +5,26 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
 
 /** Vendor implementation is supplied by app assembly, keeping glass independent of features. */
 internal data class NativeCourseCardRequest(
     val modifier: Modifier, val shape: Shape, val dark: Boolean, val color: Color,
     val tintAlpha: Float, val blurRadiusPx: Float, val renderSurface: Boolean,
-    val materialVisible: Boolean, val onClick: (() -> Unit)?
+    val materialVisible: Boolean, val onClick: (() -> Unit)?,
+    val onDrawTint: (DrawScope.() -> Unit)? = null,
+    val outlineLightStrength: Float = 1f
 )
 
-internal data class NativeCourseCardMode(val enabled: Boolean, val onEnabledChange: (Boolean) -> Unit)
+internal data class NativeCourseCardMode(
+    val enabled: Boolean,
+    val onEnabledChange: (Boolean) -> Unit,
+    val tintStrength: Float,
+    val outlineLightStrength: Float,
+    val onTintStrengthChange: (Float, Boolean) -> Unit,
+    val onOutlineLightStrengthChange: (Float, Boolean) -> Unit,
+    val onPreviewFinished: () -> Unit
+)
 
 internal val LocalNativeCourseCardMode = compositionLocalOf<NativeCourseCardMode?> { null }
 internal val LocalNativeCourseCardRenderer =

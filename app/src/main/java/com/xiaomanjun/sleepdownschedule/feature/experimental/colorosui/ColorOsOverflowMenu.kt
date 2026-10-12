@@ -24,6 +24,7 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private val animationListenerType = source.load("${type.name}\$OnMainMenuAnimationListener")
 
     init {
+        source.bindFollowLightIntensity(window.contentView)
         type.getMethod("setUseBackgroundBlur", Boolean::class.javaPrimitiveType).invoke(window, true)
         // WindowManager resolves animation resources against our package, not the vendor APK.
         // The menu root already owns COUI's enter/exit springs; avoid a second window animation.

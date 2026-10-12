@@ -90,6 +90,7 @@ private fun createNativeFab(
     icon.isFocusable = onClick != null
     root.clipChildren = false
     root.clipToPadding = false
+    source.bindFollowLightIntensity(root)
     return NativeFab(root, main, icon, setClick, accent).also { it.updateAccent(accent, force = true) }
 }
 

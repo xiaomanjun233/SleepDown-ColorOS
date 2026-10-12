@@ -5874,6 +5874,8 @@ private const val PersonalizeCardColorChange = "card-color"
 internal const val PersonalizeCardAlphaSlider = "card-alpha"
 internal const val PersonalizeCardBlurSlider = "card-blur"
 internal const val PersonalizeCardRefractionSlider = "card-refraction"
+private const val PersonalizeNativeCardTintSlider = "native-card-tint"
+private const val PersonalizeNativeCardOutlineSlider = "native-card-outline"
 internal const val PersonalizeCardFontSlider = "card-font"
 private const val PersonalizeCardGlassChange = "card-glass"
 private const val PersonalizeCardOutlineLightChange = "card-outline-light"
@@ -7060,7 +7062,54 @@ fun PersonalizePanel(
                     onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
                 )
                 val superPerformance = AppMaterialPreferences.isSuperPerformance
-                val glassLocked = !state.config.hasAnyWallpaper() || superPerformance
+                val nativeMaterialMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
+                val nativeMaterialActive = nativeMaterialMode?.enabled == true && !superPerformance
+                val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
+                nativeMaterialMode?.let { material ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
+                        LiquidControlToggle(checked = material.enabled, compact = true,
+                            onCheckedChange = material.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
+                    }
+                    Text("保留课程配色，使用系统通透材质与轮廓光",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = personalizePanelForegroundColor(state.config).copy(alpha = 0.60f),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                    if (nativeMaterialActive) {
+                        PersonalizeValueSlider(
+                            sliderKey = PersonalizeNativeCardTintSlider,
+                            value = material.tintStrength, valueRange = 0f..1f, backdrop = backdrop,
+                            label = { "课程着色强度 ${(it * 100).toInt()}%" },
+                            onCommit = { material.onTintStrengthChange(it, true) },
+                            onPreviewValueChange = { material.onTintStrengthChange(it, false) },
+                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
+                            onSliderPreviewActiveChange = { key, active ->
+                                onSliderPreviewActiveChange(key, active)
+                                if (!active) material.onPreviewFinished()
+                            }, snapValue = 1f,
+                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
+                        )
+                        if (state.config.courseCardOutlineLightEnabled) PersonalizeValueSlider(
+                            sliderKey = PersonalizeNativeCardOutlineSlider,
+                            value = material.outlineLightStrength, valueRange = 0f..1f, backdrop = backdrop,
+                            label = { "轮廓光强度 ${(it * 100).toInt()}%" },
+                            onCommit = { material.onOutlineLightStrengthChange(it, true) },
+                            onPreviewValueChange = { material.onOutlineLightStrengthChange(it, false) },
+                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
+                            onSliderPreviewActiveChange = { key, active ->
+                                onSliderPreviewActiveChange(key, active)
+                                if (!active) material.onPreviewFinished()
+                            }, snapValue = 1f,
+                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardOutlineSlider, it) }
+                        )
+                    }
+                }
                 val minimumCardAlpha = if (glassLocked) FlatCourseCardMinimumAlpha else 0f
                 val alphaLabel = when {
                     !glassLocked &&
@@ -7069,7 +7118,7 @@ fun PersonalizePanel(
                     !glassLocked && state.config.courseCardGlassEnabled -> "课程卡片着色强度"
                     else -> "课程卡片不透明度"
                 }
-                if (!superPerformance) PersonalizeValueSlider(
+                if (!superPerformance && !nativeMaterialActive) PersonalizeValueSlider(
                     sliderKey = PersonalizeCardAlphaSlider,
                     modifier = Modifier.rowEntrance(9 + weekContentRows),
                     value = state.config.cardAlpha.coerceIn(minimumCardAlpha, 1f),
@@ -7097,7 +7146,7 @@ fun PersonalizePanel(
                     }
                 )
                 if (
-                    superPerformance || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
+                    superPerformance || nativeMaterialActive || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
                     !glassLocked)
                 ) {
                     val maxCourseCardBlur = courseCardBlurMaximum(state.config.courseCardGlassEnabled)
@@ -7186,7 +7235,7 @@ fun PersonalizePanel(
                         }
                     )
                 }
-                if (state.config.courseCardGlassEnabled && !glassLocked &&
+                if (!nativeMaterialActive && state.config.courseCardGlassEnabled && !glassLocked &&
                     !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isPerformance) {
                     PersonalizeValueSlider(
                         sliderKey = PersonalizeCardRefractionSlider,
@@ -7221,7 +7270,7 @@ fun PersonalizePanel(
                         .height(4.dp)
                         .personalizePreviewVisibility(previewSliderKey, previewProgress)
                 )
-                Row(
+                if (!nativeMaterialActive) Row(
                     modifier = Modifier.rowEntrance(14 + weekContentRows)
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
@@ -7243,23 +7292,6 @@ fun PersonalizePanel(
                         backdrop = backdrop
                     )
                 }
-                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current?.let { mode ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
-                        LiquidControlToggle(checked = mode.enabled, compact = true,
-                            onCheckedChange = mode.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
-                    }
-                    Text("保留课程配色，使用系统通透材质与光感描边",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = personalizePanelForegroundColor(state.config).copy(alpha = 0.60f),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress))
-                }
                 if (glassLocked) {
                     Text(
                         if (superPerformance) "超级性能模式下不可用：液态玻璃、折射、轮廓光与高斯模糊。退出后恢复原参数。"
@@ -7272,7 +7304,7 @@ fun PersonalizePanel(
                             .personalizePreviewVisibility(previewSliderKey, previewProgress)
                     )
                 }
-                if (state.config.courseCardGlassEnabled && !glassLocked) {
+                if ((nativeMaterialActive || state.config.courseCardGlassEnabled) && !glassLocked) {
                     Row(
                         modifier = Modifier.rowEntrance(15 + weekContentRows)
                             .fillMaxWidth()
@@ -7281,7 +7313,7 @@ fun PersonalizePanel(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("质感轮廓光", style = MaterialTheme.typography.labelLarge)
+                        Text(if (nativeMaterialActive) "轮廓光" else "质感轮廓光", style = MaterialTheme.typography.labelLarge)
                         LiquidControlToggle(
                             checked = state.config.courseCardOutlineLightEnabled,
                             compact = true,

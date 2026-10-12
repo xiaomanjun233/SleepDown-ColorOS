@@ -820,23 +820,30 @@ private fun DrawScope.drawBottomLitGlassTint(
     topTintFloor: Float = 0.20f,
     expanded: Boolean = false
 ) {
+    drawRect(bottomLitGlassTintBrush(color, size.height, topTintFloor, expanded))
+}
+
+private fun bottomLitGlassTintBrush(
+    color: Color, height: Float, topTintFloor: Float = 0.20f,
+    expanded: Boolean = false, uniformTintFraction: Float = 0f
+): Brush {
     val top = topTintFloor.coerceIn(0f, 0.72f)
+    val uniform = uniformTintFraction.coerceIn(0f, 1f)
+    fun tint(weight: Float) = color.copy(alpha = color.alpha * (uniform + (1f - uniform) * weight))
     val firstLiftY = if (expanded) 0.68f else 0.82f
     val brightBandY = if (expanded) 0.82f else 0.90f
     val rimY = if (expanded) 0.92f else 0.96f
-    drawRect(
-        brush = Brush.verticalGradient(
+    return Brush.verticalGradient(
             colorStops = arrayOf(
-                0f to color.copy(alpha = color.alpha * top),
-                (if (expanded) 0.48f else 0.62f) to color.copy(alpha = color.alpha * top),
-                firstLiftY to color.copy(alpha = color.alpha * maxOf(top, 0.48f)),
-                brightBandY to color.copy(alpha = color.alpha * maxOf(top, 0.84f)),
-                rimY to color.copy(alpha = color.alpha * maxOf(top, 0.88f)),
+                0f to tint(top),
+                (if (expanded) 0.48f else 0.62f) to tint(top),
+                firstLiftY to tint(maxOf(top, 0.48f)),
+                brightBandY to tint(maxOf(top, 0.84f)),
+                rimY to tint(maxOf(top, 0.88f)),
                 1f to color
             ),
-            endY = size.height
+            endY = height
         )
-    )
 }
 
 internal fun Modifier.verticalGlassAccent(
@@ -1083,20 +1090,59 @@ fun CourseGlassCard(
         occlusionPhase == CourseGlassOcclusionPhase.PostCloseRestore ||
             occlusionPhase == CourseGlassOcclusionPhase.Revealing
     val previewState = LocalPersonalizationPreview.current
-    if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current?.enabled == true) {
+    val nativeMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
+    if (nativeMode?.enabled == true) {
         val base = if (muted) MutedCourseLightColor else courseCardBaseColor(config, course)
-        val alpha = courseGlassTintAlpha(previewState?.cardAlpha ?: config.cardAlpha, 1f, config.hasAnyWallpaper())
+        val outline = muted || config.courseCardOutlineLightEnabled
+        val outlineStrength = if (outline) nativeMode.outlineLightStrength else 0f
+        val brightness = if (outline) courseCardBrightnessAttenuation(config.wallpaperBrightness, true) else 1f
+        val alpha = courseGlassTintAlpha(if (outline) 0.75f else previewState?.cardAlpha ?: config.cardAlpha,
+            1f, config.hasAnyWallpaper()) * brightness * nativeMode.tintStrength
         val blurPx = with(androidx.compose.ui.platform.LocalDensity.current) {
             (blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur).dp.toPx()
         }
-        val background = rememberCourseTextBackground(base, alpha, true, blurPx, false, false,
+        val light = glassUsesLightStyle(config)
+        val tintDraw: (DrawScope.() -> Unit)? = if (outline) remember(base, alpha, outlineStrength, expandedOutlineLight, light) {
+            var height = Float.NaN
+            var brush: Brush? = null
+            val draw: DrawScope.() -> Unit = {
+                if (size.height != height) {
+                    height = size.height
+                    brush = bottomLitGlassTintBrush(base.copy(alpha = alpha), height,
+                        expanded = expandedOutlineLight, uniformTintFraction = 1f - outlineStrength)
+                }
+                drawRect(requireNotNull(brush))
+                drawRect(Color.White.copy(alpha = (if (light) 0.012f else 0.008f) * outlineStrength), blendMode = BlendMode.Screen)
+                drawRect(Color.Black.copy(alpha = (if (light) 0.004f else 0.014f) * outlineStrength))
+            }
+            draw
+        } else null
+        val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+        val cardBounds = remember { {
+            coordinates[0]?.takeIf { it.isAttached }?.let { position ->
+                val origin = position.localToWindow(Offset.Zero)
+                Rect(origin.x, origin.y, origin.x + position.size.width, origin.y + position.size.height)
+            }
+        } }
+        val background = rememberCourseTextBackground(base, alpha, true, blurPx, outline, expandedOutlineLight,
             flatBackground = homeFlatBackgroundColor(appUsesDarkTheme(config)).takeUnless { config.hasAnyWallpaper() },
-            ready = true, cardBounds = { null })
+            ready = true, cardBounds = cardBounds, outlineStrength = outlineStrength)
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
-                modifier, shape, appUsesDarkTheme(config), base, alpha, blurPx,
-                renderSurface, drawMaterialNodes, onClick
-            )) { CompositionLocalProvider(LocalCourseTextBackground provides background) { content() } } == true) return
+                modifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config), base, alpha, blurPx,
+                renderSurface, drawMaterialNodes, onClick, tintDraw, outlineStrength
+            )) {
+                Box {
+                    if (outline && renderSurface && viewportMaterialVisible &&
+                        materialPolicy.level != com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialLevel.PERFORMANCE) {
+                        VerticalGlassAccentOverlay(base, shape, light,
+                            intensity = outlineStrength * brightness,
+                            expanded = expandedOutlineLight, surroundingEdgeGlow = true,
+                            modifier = Modifier.matchParentSize())
+                    }
+                    CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }
+                }
+            } == true) return
     }
     val glassBackdrop = if (
         config.courseCardGlassEnabled &&

@@ -176,6 +176,7 @@ private class NativeAlert(
         builder.javaClass.getDeclaredMethod("disabledTitleScroll", source.load("androidx.appcompat.app.AlertDialog"))
             .apply { isAccessible = true }.invoke(builder, dialog)
         builder.javaClass.getMethod("updateViewAfterShown").invoke(builder)
+        dialog.window?.decorView?.let { source.bindFollowLightIntensity(it) }
         if (request().deferDismissUntilHost) {
             dismissGuard = NativeFormDismissGuard(dialog, source) { request().onDismissRequest() }
         }
@@ -375,6 +376,7 @@ internal fun ColorOsDialogButton(request: NativeDialogButtonRequest): Boolean {
                 materialState.getField("FOLLOW_SYSTEM").get(null),
                 kind)
             type.getMethod("setIsDrawableMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, false)
+            native.first.bindFollowLightIntensity(view)
             view
         }
     } ?: return false
