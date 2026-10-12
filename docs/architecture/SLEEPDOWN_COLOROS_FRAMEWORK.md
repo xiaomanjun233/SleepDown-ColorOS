@@ -16,7 +16,7 @@
 
 原生 `COUIButton` 负责材质、圆角、触摸、滑动取消、跟手光和触感；Compose 保留图标、文字、加载内容及原有尺寸。外层合并按钮语义并处理键盘激活，原生空文本 View 不重复暴露给无障碍。业务显式禁用状态传递给原生控件。
 
-Compose 内容录制为 GraphicsLayer，通过 COUIButton 自身的 ViewOverlay 绘制，随原生 `COUITouchMotionAnimator` 对整个 View 的平移和缩放一起变化。用于测量和无障碍的 Row 不在同级位置再画一份；录制边界缓存未变化的内容，不新增逐帧状态同步或另一套弹簧动画。录制复用 `withRecordingDensity`，销毁时移除 overlay。
+Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载状态的正常更新。`ColorOsCapsuleMotionBinding` 订阅 COUIButton 自身的 `COUITouchMotionAnimator`，从同一个 `ContributeSink` 取得位移与缩放；Row 只在 graphicsLayer 块中读取这些值，不在组合阶段读取，也不创建第二套弹簧。销毁时解除回调。旧的 ViewOverlay 跨 Canvas 录制方案已因实机文字消失撤回。
 
 普通按钮使用系统 secondary 材质，彩色操作使用 primary 材质并沿用操作颜色。primary 仅替换系统预设的主题颜色层，保留系统模糊半径、混合模式和禁用透明度；确认按钮指定应用主题色与白字。跟手光沿用系统默认光色和当前 2× 强度。
 
@@ -36,13 +36,23 @@ Compose 内容录制为 GraphicsLayer，通过 COUIButton 自身的 ViewOverlay 
 - 展开的菜单与形变目标使用同一个中性色函数，避免壁纸亮度判断和菜单主题判断在交接处产生跳色。
 - 三点菜单在系统列表完成绑定后，同时设置 TextView、ImageView 与复合图标的前景色，避免原生适配器重新套用旧图标 tint。
 - Dock 和加号仍位于完整首页快照内；框架迁移不把它们移到根页面上方。完整采样、临时变换和快照的归属仍由页面宿主管理。
+- 壁纸主题色结合 Dock 区域实际可见背景亮度调整明度；深背景使用较亮主题色，浅背景提高对比度。加号底色单独保证白色图标对比度，形变起点与实际加号底色一致。
+- 原生 Dock 的后备内容通过稳定 State 传入，避免未使用的 Compose 后备函数捕获背景状态后改变原生宿主参数。shortcut 的整页模糊保留，动画进度只由绘制层读取；这一隔离不等同于实机重组次数已验证。
 
-## 课程凝光与顶部渐变模糊
+## 课程 shortcut
+
+课程长按菜单复用右上角菜单的 `NativeOverflowMenu` / `COUIPopupListWindow`，由课程位置对应的透明 View 提供锚点。原生窗口负责面板材质、触摸和进入退出动画；背景仍由首页完整快照执行整页模糊，原生 Dock 处在同一快照内。编辑、复制与删除继续走原业务回调，移除项保留红色。
+
+关闭时等待原生窗口和首页背景退出均完成，再执行后续操作；reset、页面退出和拖拽接管会取消待执行动作。系统原生能力不可用时使用既有 Compose shortcut。
+
+## 课程凝光与渐变模糊
 
 课程凝光保留课程渐变色与默认 50% 着色，模糊沿用内容通透预设。描边改用 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`；跟手光改用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角。个性化面板只保留开关与着色滑杆，不显示模式说明文字。
 
-首页顶部通过 `LocalNativeTopGradientBlurRenderer` 接入系统 `AppBarBlurHelper.setUpGradientBlurBackground(View)`，系统负责渐变模糊半径、明暗着色及材质设置变化。原生实现使用 `OplusRenderEffect.createGradientBlurEffect` 和背景 RenderEffect，不额外叠加旧的 Kyant 采样或壁纸亮度补偿。原生 View 放在原先顶部模糊带的位置，随页面进入快照和转场。退出时调用 `clearGradientBlur` 清理效果与监听；缺少能力、初始化失败或应用使用简化渐变模糊策略时回到既有实现。二级页面与其他方向的渐变模糊不受本次首页接入影响。
+所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
+
+不再调用 `setUpGradientBlurBackground(View)`：它会同时添加系统页面底色的 `GradientBackgroundDrawable`，造成首页白色遮罩。当前仅调用原生模糊算子，并保留应用原有显式着色；首页原本为零的着色不会被系统底色覆盖。监听系统材质开关，关闭时不继续添加模糊效果；缺少原生能力时使用原有算法。私有原生 API 的方向及观感仍需 ColorOS 真机验收，桌面测试不能证明系统 GPU 输出。
 
 ## 验证入口
 
-UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、三操作弹窗及 shortcut / 多课表快照。
+UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。
