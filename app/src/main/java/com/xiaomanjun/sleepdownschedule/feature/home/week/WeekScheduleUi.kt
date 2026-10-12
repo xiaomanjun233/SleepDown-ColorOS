@@ -1438,6 +1438,7 @@ fun WeekSwitchButton(direction: Int, config: ScheduleConfigEntity, backdrop: Bac
     if (backdrop != null) {
         LiquidButton(
             onClick = { if (enabled) onClick() },
+            enabled = enabled,
             backdrop = backdrop,
             modifier = Modifier
                 .size(34.dp)

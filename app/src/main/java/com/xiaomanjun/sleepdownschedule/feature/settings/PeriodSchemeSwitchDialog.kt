@@ -30,7 +30,7 @@ internal fun PeriodSchemeSwitchDialog(
         title = "切换作息",
         message = "",
         actions = listOf(
-            LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onDismiss),
+            LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onDismiss),
             LiquidAlertAction("确认切换", LiquidAlertActionStyle.Primary,
                 enabled = impact != null && impact.conflicts.isEmpty(), onClick = { onConfirm(mode) })
         ),

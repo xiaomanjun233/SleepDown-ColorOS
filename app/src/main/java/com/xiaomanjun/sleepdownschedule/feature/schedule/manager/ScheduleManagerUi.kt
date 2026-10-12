@@ -536,7 +536,7 @@ fun ScheduleManagerScreen(
             title = "删除课表",
             message = "确定要删除「${profile.name}」吗？该课表内的课程会一起删除。",
             actions = listOf(
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { deleteCandidate = null },
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { deleteCandidate = null },
                 LiquidAlertAction("删除", LiquidAlertActionStyle.Destructive) {
                     onDelete(profile.id)
                     deleteCandidate = null
@@ -592,7 +592,7 @@ fun ScheduleManagerScreen(
                         }
                     }
                 },
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { showShareOptions = false }
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { showShareOptions = false }
             ),
             backdrop = sceneBackdrop,
             config = settingsVisualConfig(state.config),

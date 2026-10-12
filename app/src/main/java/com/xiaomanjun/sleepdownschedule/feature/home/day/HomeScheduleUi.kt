@@ -1252,7 +1252,7 @@ fun ApplyCourseEditDialog(
         actions = buildList {
             if (singleAllowed) add(LiquidAlertAction("仅本次", LiquidAlertActionStyle.Primary, onClick = onSingle))
             add(LiquidAlertAction("应用全部", LiquidAlertActionStyle.Secondary, onClick = onAll))
-            add(LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onCancel))
+            add(LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onCancel))
         },
         backdrop = backdrop,
         config = config,
@@ -1311,7 +1311,7 @@ fun ApplyCourseDeleteDialog(
                 add(LiquidAlertAction("仅删除本次", LiquidAlertActionStyle.Primary, onClick = onSingle))
             }
             add(LiquidAlertAction("删除全部", LiquidAlertActionStyle.Destructive, onClick = onAll))
-            add(LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onCancel))
+            add(LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onCancel))
         },
         backdrop = backdrop,
         config = config,

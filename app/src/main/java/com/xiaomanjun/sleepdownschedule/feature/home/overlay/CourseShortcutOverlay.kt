@@ -287,7 +287,7 @@ internal fun CourseShortcutOverlay(
                     controller.copyRequest = null
                     onCopy(copy, copiedShortcutCourse(copy.course, copy.week))
                 },
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { controller.copyRequest = null }
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { controller.copyRequest = null }
             ),
             onDismissRequest = { controller.copyRequest = null },
             backdrop = backdrop, config = config

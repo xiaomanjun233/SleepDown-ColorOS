@@ -910,6 +910,7 @@ private fun AgentOperationLiquidButton(
     if (backdrop != null) {
         LiquidButton(
             onClick = { if (!applied && enabled) onClick() },
+            enabled = !applied && enabled,
             backdrop = backdrop,
             modifier = modifier,
             height = 42.dp,

@@ -696,7 +696,7 @@ fun NormalizedAiManualImportScreen(
             actions = listOf(
                 LiquidAlertAction(
                     "取消",
-                    LiquidAlertActionStyle.Secondary,
+                    LiquidAlertActionStyle.Cancel,
                     onClick = { showAiTokenRepairPrompt = false }
                 ),
                 LiquidAlertAction(

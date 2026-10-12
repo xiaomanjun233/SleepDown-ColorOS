@@ -9013,7 +9013,7 @@ private fun SettingsUpdateDialogHost(
         SettingsUpdateDialog.Checking -> LiquidAlertDialog(
             title = "正在检查更新",
             message = "正在读取 Gitee 上最新的 SleepDown-Schedule Release。",
-            actions = listOf(LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onDismiss)),
+            actions = listOf(LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onDismiss)),
             backdrop = backdrop,
             config = config,
             onDismissRequest = onDismiss
@@ -9081,7 +9081,7 @@ private fun SettingsUpdateDialogHost(
             title = "允许安装更新",
             message = "Android 需要你先允许 SleepDown 安装来自 Gitee 的更新。授权返回后会继续打开系统安装确认页面。",
             actions = listOf(
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onDismiss),
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onDismiss),
                 LiquidAlertAction("去授权", LiquidAlertActionStyle.Primary, onClick = onRequestInstallPermission)
             ),
             backdrop = backdrop,
@@ -9231,7 +9231,7 @@ fun ScheduleManagerScreen(
             title = "删除课表",
             message = "确定要删除「$name」吗？该课表下的所有课程都会被删除，且无法恢复。",
             actions = listOf(
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { deleteTarget = null },
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { deleteTarget = null },
                 LiquidAlertAction("确认删除", LiquidAlertActionStyle.Destructive) {
                     val targetId = id
                     deleteTarget = null

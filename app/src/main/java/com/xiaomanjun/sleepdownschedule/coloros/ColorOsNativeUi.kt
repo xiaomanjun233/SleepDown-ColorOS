@@ -47,7 +47,7 @@ internal object ColorOsNativeUi {
                     packageName, Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY
                 )
                 val source = Source(packageName, native)
-                // This first wave needs the ColorOS 17 floating bar and button material APIs.
+                // Framework capability baseline: ColorOS floating bars and button materials.
                 source.load(FloatingNavigation)
                 source.load(ToolbarMaterial).getMethod("forMenuItem", View::class.java)
                 check(source.resource("Theme.COUI.Main", "style") != 0)
@@ -56,7 +56,7 @@ internal object ColorOsNativeUi {
             }
             if (candidate != null) {
                 cachedSource = candidate
-                Log.i(Tag, "Native home components loaded from $packageName")
+                Log.i(Tag, "SleepDown ColorOS framework loaded from $packageName")
                 return candidate
             }
         }
@@ -66,7 +66,7 @@ internal object ColorOsNativeUi {
     fun <T> prepare(operation: String, block: () -> T): T? = try {
         block()
     } catch (error: Exception) {
-        Log.w(Tag, "Cannot $operation; keeping the existing home component", error)
+        Log.w(Tag, "Cannot $operation; keeping the shared Compose fallback", error)
         null
     } catch (error: LinkageError) {
         Log.w(Tag, "Cannot $operation; incompatible installed COUI classes", error)

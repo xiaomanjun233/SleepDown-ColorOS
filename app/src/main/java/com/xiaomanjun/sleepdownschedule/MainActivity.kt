@@ -204,16 +204,9 @@ fun CourseScheduleTheme(
             )
         }
     ) {
-        androidx.compose.runtime.CompositionLocalProvider(
-            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeAlertRenderer provides
-                { request -> com.xiaomanjun.sleepdownschedule.coloros.ColorOsAlertDialog(request) },
-            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogButtonRenderer provides
-                { request -> com.xiaomanjun.sleepdownschedule.coloros.ColorOsDialogButton(request) },
-            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode provides
-                com.xiaomanjun.sleepdownschedule.coloros.rememberColorOsCourseCardMode(),
-            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer provides
-                { request, body -> com.xiaomanjun.sleepdownschedule.coloros.ColorOsCourseCard(request, body) }
-        ) { Surface(modifier = Modifier.fillMaxSize(), content = content) }
+        com.xiaomanjun.sleepdownschedule.coloros.ProvideSleepDownColorOs {
+            Surface(modifier = Modifier.fillMaxSize(), content = content)
+        }
     }
 }
 

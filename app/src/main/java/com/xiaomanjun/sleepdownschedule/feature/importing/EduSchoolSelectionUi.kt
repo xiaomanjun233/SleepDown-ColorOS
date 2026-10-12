@@ -198,7 +198,7 @@ fun EduSchoolPickerScreen(
             actions = listOf(
                 LiquidAlertAction(
                     label = "取消",
-                    style = LiquidAlertActionStyle.Secondary,
+                    style = LiquidAlertActionStyle.Cancel,
                     onClick = { adapterChoices = null }
                 ),
                 LiquidAlertAction(
@@ -1334,7 +1334,7 @@ internal fun EduBridgeInteractionDialog(
                 actions = listOf(
                     LiquidAlertAction(
                         label = "取消",
-                        style = LiquidAlertActionStyle.Secondary,
+                        style = LiquidAlertActionStyle.Cancel,
                         onClick = ::cancel
                     ),
                     LiquidAlertAction(

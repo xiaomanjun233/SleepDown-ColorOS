@@ -5,6 +5,8 @@ import android.app.Dialog as AndroidDialog
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.DialogInterface
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
 import android.util.Log
@@ -31,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCompositionContext
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
@@ -51,7 +55,6 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertActionStyle
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogSurface
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeAlertRequest
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeDialogButtonRequest
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import com.xiaomanjun.sleepdownschedule.model.ScheduleConfigEntity
 import java.lang.reflect.InvocationTargetException
@@ -67,6 +70,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
     val owner = LocalView.current
     val parentComposition = rememberCompositionContext()
     val latest = rememberUpdatedState(request)
+    val primaryColor = rememberUpdatedState(MaterialTheme.colorScheme.primary.toArgb())
     val actionLayout = request.actions.map { it.label to it.style }
     var showFailed by remember(native, request.dark, actionLayout) { mutableStateOf(false) }
     val control = remember(native, request.dark, actionLayout, request.messageContent != null, request.deferDismissUntilHost) {
@@ -80,15 +84,18 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
                 .invoke(builder, request.message)
             builderType.getMethod("setBlurBackgroundDrawable", Boolean::class.javaPrimitiveType).invoke(builder, true)
             check(request.actions.size <= 3) { "System alerts support up to three actions" }
-            val recommended = request.actions.indexOfLast { it.style == LiquidAlertActionStyle.Primary }
-                .takeIf { it >= 0 } ?: request.actions.lastIndex
+            val buttonSlots = colorOsAlertSlots(request.actions.map { it.style })
+            val recommended = buttonSlots.indexOf(ColorOsAlertSlot.Positive)
             val recommendType = source.load("com.coui.appcompat.button.COUIButton\$ButtonType")
             builderType.getMethod("setRecommendButtonType", recommendType).invoke(builder,
                 recommendType.getField(if (request.actions.getOrNull(recommended)?.style == LiquidAlertActionStyle.Primary)
                     "PRIMARY" else "SECONDARY").get(null))
-            val otherSlots = listOf(DialogInterface.BUTTON_NEGATIVE, DialogInterface.BUTTON_NEUTRAL).iterator()
-            val slots = request.actions.indices.map { index ->
-                if (index == recommended) DialogInterface.BUTTON_POSITIVE else otherSlots.next()
+            val slots = buttonSlots.map { slot ->
+                when (slot) {
+                    ColorOsAlertSlot.Positive -> DialogInterface.BUTTON_POSITIVE
+                    ColorOsAlertSlot.Negative -> DialogInterface.BUTTON_NEGATIVE
+                    ColorOsAlertSlot.Neutral -> DialogInterface.BUTTON_NEUTRAL
+                }
             }
             request.actions.forEachIndexed { index, action ->
                 val method = when (slots[index]) {
@@ -124,7 +131,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
                 // The Activity token, app context and process UID remain SleepDown's.
                 window.attributes = window.attributes.apply { packageName = source.packageName }
             }
-            NativeAlert(dialog, builder, compose, slots, source, context) { latest.value }
+            NativeAlert(dialog, builder, compose, slots, source, context, { primaryColor.value }) { latest.value }
         }
     } ?: return false
     if (showFailed) return false
@@ -146,6 +153,7 @@ private class NativeAlert(
     private val slots: List<Int>,
     private val source: ColorOsNativeUi.Source,
     private val context: Context,
+    private val primaryColor: () -> Int,
     private val request: () -> NativeAlertRequest
 ) {
     private var disposed = false
@@ -176,7 +184,16 @@ private class NativeAlert(
         builder.javaClass.getDeclaredMethod("disabledTitleScroll", source.load("androidx.appcompat.app.AlertDialog"))
             .apply { isAccessible = true }.invoke(builder, dialog)
         builder.javaClass.getMethod("updateViewAfterShown").invoke(builder)
-        dialog.window?.decorView?.let { source.bindFollowLightIntensity(it) }
+        request().actions.forEachIndexed { index, action ->
+            if (action.style == LiquidAlertActionStyle.Primary) {
+                val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
+                    .invoke(dialog, slots[index]) as TextView
+                source.configureCapsuleButton(button, primary = true)
+            }
+        }
+        dialog.window?.decorView?.let {
+            source.bindFollowLightIntensity(it, afterMaterialApplied = ::applyActionAppearance)
+        }
         if (request().deferDismissUntilHost) {
             dismissGuard = NativeFormDismissGuard(dialog, source) { request().onDismissRequest() }
         }
@@ -211,9 +228,6 @@ private class NativeAlert(
             val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
                 .invoke(dialog, slots[index]) as TextView
             if (button.isEnabled != action.enabled) button.isEnabled = action.enabled
-            if (!actionsBound && action.style == LiquidAlertActionStyle.Destructive) {
-                button.setTextColor(source.color(context, "couiColorError"))
-            }
             // Replace only click dispatch; native press/spotlight remains on the original COUIButton.
             if (!actionsBound) button.setOnClickListener {
                 val active = request().actions[index]
@@ -223,7 +237,25 @@ private class NativeAlert(
                 }
             }
         }
+        applyActionAppearance()
         actionsBound = true
+    }
+
+    private fun applyActionAppearance() {
+        if (disposed || !dialog.isShowing) return
+        request().actions.forEachIndexed { index, action ->
+            val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
+                .invoke(dialog, slots[index]) as TextView
+            when (action.style) {
+                LiquidAlertActionStyle.Primary -> {
+                    source.applyCapsuleAccent(button, primaryColor())
+                    button.setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                        intArrayOf(0x61FFFFFF, Color.WHITE)))
+                }
+                LiquidAlertActionStyle.Destructive -> button.setTextColor(source.color(context, "couiColorError"))
+                else -> Unit
+            }
+        }
     }
 
     fun dispose() {
@@ -342,7 +374,7 @@ internal fun ColorOsNameDialog(title: String, initialName: String, dark: Boolean
         AndroidView(factory = { edit }, modifier = Modifier.fillMaxWidth())
     }
     return ColorOsAlertDialog(NativeAlertRequest(title, "", listOf(
-        LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary, onClick = onDismiss),
+        LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onDismiss),
         LiquidAlertAction("完成", LiquidAlertActionStyle.Primary, onClick = { onConfirm(value.trim()) })
     ), dark, onDismiss, 120.dp, false, content))
 }
@@ -351,40 +383,4 @@ private tailrec fun Context.activityOrNull(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.activityOrNull()
     else -> null
-}
-
-@Composable
-internal fun ColorOsDialogButton(request: NativeDialogButtonRequest): Boolean {
-    request.iconRes?.let { icon ->
-        return ColorOsHomeIconButton(icon, request.label, request.dark, request.enabled, false,
-            request.modifier, request.onClick, enabled = request.enabled)
-    }
-    val native = rememberNativeContext(request.dark) ?: return false
-    val click = rememberUpdatedState(request.onClick)
-    val button = remember(native, request.dark, request.primary) {
-        ColorOsNativeUi.prepare("create a native dialog button") {
-            native.first.updateTheme(native.second, request.dark)
-            val type = native.first.load("com.coui.appcompat.button.COUIButton")
-            val view = type.getConstructor(Context::class.java).newInstance(native.second) as TextView
-            val buttonType = native.first.load("${type.name}\$ButtonType")
-            val kind = buttonType.getField(if (request.primary) "PRIMARY" else "SECONDARY").get(null)
-            type.getMethod("setButtonType", buttonType).invoke(view, kind)
-            val materialState = native.first.load("${type.name}\$MaterialEffectState")
-            // Pass the type together with the material state: the one-argument setter resets
-            // the button type to UNKNOWN. Custom form buttons are outside COUI's button panel.
-            type.getMethod("setUseMaterialEffectAttr", materialState, buttonType).invoke(view,
-                materialState.getField("FOLLOW_SYSTEM").get(null),
-                kind)
-            type.getMethod("setIsDrawableMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, false)
-            native.first.bindFollowLightIntensity(view)
-            view
-        }
-    } ?: return false
-    AndroidView(factory = { button }, modifier = request.modifier.height(request.height), update = {
-        it.text = request.label
-        it.isEnabled = request.enabled
-        it.setOnClickListener { click.value() }
-    })
-    DisposableEffect(button) { onDispose { button.setOnClickListener(null) } }
-    return true
 }

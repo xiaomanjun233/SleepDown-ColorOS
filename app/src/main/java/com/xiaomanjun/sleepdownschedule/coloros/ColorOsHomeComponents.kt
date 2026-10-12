@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -182,18 +181,6 @@ internal fun createNativeHomeDock(
             override fun onViewAttachedToWindow(view: View) { view.post { dock.tintLight() } }
             override fun onViewDetachedFromWindow(view: View) = Unit
         })
-    }
-}
-
-@Composable
-internal fun rememberNativeContext(dark: Boolean): Pair<ColorOsNativeUi.Source, Context>? {
-    val host = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val source = remember(host) { ColorOsNativeUi.source(host) }
-    return remember(source, host, configuration) {
-        source?.let { native ->
-            ColorOsNativeUi.prepare("create the native theme") { native to native.themedContext(host, dark) }
-        }
     }
 }
 

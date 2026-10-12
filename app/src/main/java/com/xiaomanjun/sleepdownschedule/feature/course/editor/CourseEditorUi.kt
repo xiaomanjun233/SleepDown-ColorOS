@@ -1039,7 +1039,7 @@ fun NormalizedCourseEditorScreen(
                     showExitConfirm = false
                     onCancel()
                 },
-                LiquidAlertAction("继续编辑", LiquidAlertActionStyle.Secondary) { showExitConfirm = false }
+                LiquidAlertAction("继续编辑", LiquidAlertActionStyle.Cancel) { showExitConfirm = false }
             ),
             backdrop = backdrop,
             config = config,

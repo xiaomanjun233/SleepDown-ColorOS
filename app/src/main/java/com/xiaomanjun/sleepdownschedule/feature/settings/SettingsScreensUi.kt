@@ -1149,7 +1149,7 @@ fun AiImportSettingsSection(
             title = "删除自定义接口？",
             message = "将删除此接口的名称、地址、模型和本机保存的 API Key，不会影响其他接口。",
             actions = listOf(
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) {
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) {
                     showDeleteProviderConfirm = false
                 },
                 LiquidAlertAction("删除", LiquidAlertActionStyle.Destructive) {

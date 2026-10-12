@@ -86,7 +86,8 @@ enum class LiquidDialogSize {
 enum class LiquidAlertActionStyle {
     Primary,
     Secondary,
-    Destructive
+    Destructive,
+    Cancel
 }
 
 data class LiquidAlertAction(
@@ -515,7 +516,7 @@ fun LiquidAlertActions(
                 SleepDownDesignTokens.CenteredDialog.ActionSpacing
             )
         ) {
-            actions.forEach { action ->
+            actions.sortedBy { it.style == LiquidAlertActionStyle.Cancel }.forEach { action ->
                 LiquidAlertActionButton(action, backdrop, config, Modifier.fillMaxWidth())
             }
         }
@@ -609,11 +610,23 @@ private fun LiquidAlertActionButton(
     config: ScheduleConfigEntity,
     modifier: Modifier = Modifier
 ) {
+    if (LocalNativeCapsuleButtonRenderer.current?.invoke(NativeCapsuleButtonRequest(
+            action.onClick, modifier, SleepDownDesignTokens.CenteredDialog.ActionHeight,
+            PaddingValues(horizontal = 16.dp), appUsesDarkTheme(config), action.enabled,
+            if (action.style == LiquidAlertActionStyle.Primary) MaterialTheme.colorScheme.primary else Color.Unspecified
+        )) {
+            Text(action.label, color = when (action.style) {
+                LiquidAlertActionStyle.Primary -> Color.White
+                LiquidAlertActionStyle.Destructive -> Color(0xFFFF453A)
+                LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Cancel -> sleepDownPanelForegroundColor(config)
+            }.copy(alpha = if (action.enabled) 1f else 0.38f),
+                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, maxLines = 1)
+        } == true) return
     val fallbackInteractionSource = remember { MutableInteractionSource() }
     val fallbackPressed by fallbackInteractionSource.collectIsPressedAsState()
     val baseContentColor = when (action.style) {
         LiquidAlertActionStyle.Primary -> Color.White
-        LiquidAlertActionStyle.Secondary -> sleepDownPanelForegroundColor(config)
+        LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Cancel -> sleepDownPanelForegroundColor(config)
         LiquidAlertActionStyle.Destructive -> Color(0xFFFF453A)
     }
     val contentColor = baseContentColor.copy(alpha = if (action.enabled) 1f else 0.38f)
@@ -622,7 +635,7 @@ private fun LiquidAlertActionButton(
         LiquidAlertActionStyle.Primary -> if (dark) Color(0xFF099AFF).copy(alpha = 0.82f) else {
             Color(0xFF0A84FF).copy(alpha = 0.90f)
         }
-        LiquidAlertActionStyle.Secondary -> if (dark) {
+        LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Cancel -> if (dark) {
             Color(0xFF363639).copy(alpha = 0.76f)
         } else {
             Color(0xFFD6D9DF).copy(alpha = 0.80f)
@@ -728,11 +741,33 @@ fun DialogLiquidButton(
         useRoundIcon && role == DialogButtonRole.Confirm -> R.drawable.ic_check
         else -> null
     }
-    if (LocalNativeDialogSurface.current && content == null &&
-        LocalNativeDialogButtonRenderer.current?.invoke(NativeDialogButtonRequest(
-            label, role == DialogButtonRole.Confirm, darkTheme, enabled, onClick,
-            modifier, height, if (useRoundIcon) resolvedIconRes else null
-        )) == true) return
+    val nativeTextColor = when {
+        role == DialogButtonRole.Confirm || destructiveFilled -> Color.White
+        controlDark -> Color.White
+        else -> Color.Black
+    }.copy(alpha = if (enabled) 1f else 0.38f)
+    if (LocalNativeCapsuleButtonRenderer.current?.invoke(NativeCapsuleButtonRequest(
+            onClick, if (useRoundIcon) modifier.size(42.dp) else modifier,
+            if (useRoundIcon) 42.dp else height,
+            if (useRoundIcon) PaddingValues(0.dp) else PaddingValues(horizontal = horizontalPadding),
+            controlDark, enabled, when {
+                destructiveFilled -> Color(0xFFFF453A)
+                role == DialogButtonRole.Confirm -> MaterialTheme.colorScheme.primary
+                else -> Color.Unspecified
+            }
+        )) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides nativeTextColor
+            ) {
+                if (content != null) content() else {
+                    resolvedIconRes?.let {
+                        Icon(painterResource(it), contentDescription = label, modifier = Modifier.size(20.dp), tint = nativeTextColor)
+                    }
+                    if (!useRoundIcon) Text(label, color = nativeTextColor, style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                }
+            }
+        } == true) return
     val superPerformance = com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
     val neutralFlat = superPerformance && !highContrast && role != DialogButtonRole.Confirm && !destructiveFilled
     val textColor = if (neutralFlat) {

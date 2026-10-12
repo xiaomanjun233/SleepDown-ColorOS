@@ -581,6 +581,7 @@ internal fun QuickSheetLiquidAction(
         }
         LiquidButton(
             onClick = { if (enabled) onClick() },
+            enabled = enabled,
             backdrop = backdrop,
             modifier = actionModifier,
             height = height,

@@ -1121,7 +1121,7 @@ fun SchedulePickerOverlay(
             title = "删除课表",
             message = "确定要删除「${profile.name}」吗？该课表内的课程会一起删除。",
             actions = listOf(
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { deleteConfirmTarget = null },
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { deleteConfirmTarget = null },
                 LiquidAlertAction("删除", LiquidAlertActionStyle.Destructive) {
                     deleteConfirmTarget = null
                     onDeleteRequest(profile.id)
@@ -1145,7 +1145,7 @@ fun SchedulePickerOverlay(
                     showShareOptions = false
                     onShare(selectedId, ScheduleShareType.ICS)
                 },
-                LiquidAlertAction("取消", LiquidAlertActionStyle.Secondary) { showShareOptions = false }
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { showShareOptions = false }
             ),
             backdrop = dialogBackdrop,
             config = allState.allConfigs.firstOrNull { it.id == selectedId } ?: defaultConfig(selectedId),
@@ -1168,6 +1168,7 @@ private fun PickerHeaderButton(
     if (backdrop != null) {
         LiquidButton(
             onClick = { if (latestEnabled) latestOnClick() },
+            enabled = enabled,
             backdrop = backdrop,
             modifier = Modifier.width(86.dp),
             height = 40.dp,
@@ -1201,6 +1202,7 @@ private fun PickerIconLiquidButton(
     if (backdrop != null) {
         LiquidButton(
             onClick = { if (latestEnabled) latestOnClick() },
+            enabled = enabled,
             backdrop = backdrop,
             modifier = modifier,
             height = 52.dp,
@@ -1228,9 +1230,12 @@ private fun PickerTextButton(label: String, enabled: Boolean, backdrop: Backdrop
     if (backdrop != null) {
         LiquidButton(
             onClick = { if (latestEnabled) latestOnClick() },
+            enabled = enabled,
             backdrop = backdrop,
             modifier = buttonModifier,
             height = 52.dp,
+            // This overlay deliberately uses white text in both application themes.
+            nativeDarkOverride = true,
             blurRadius = 10.dp,
             lensHeight = 26.dp,
             lensAmount = 34.dp,

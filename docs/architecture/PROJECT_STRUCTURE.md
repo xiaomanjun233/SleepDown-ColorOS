@@ -35,6 +35,7 @@ app -------------> transition
 - `feature/`：按用户功能纵向组织的页面、状态和工作流。
 - `feature/experimental/`：当前普通版中按渠道和设备门控的厂商通知实验入口；专属 Shizuku/root 桥接分别在 `app/src/github/` 和 `app/src/store/`。
 - `glass/`：液态玻璃统一框架，保持既有采样域和材质边界。
+- `coloros/`：ColorOS 派生版专用组件框架，集中加载系统 COUI、管理原生材质与触摸，并通过公共设计系统的渲染接口装配；见 [ColorOS 框架](SLEEPDOWN_COLOROS_FRAMEWORK.md)。
 - `transition/`：跨 Activity 转场统一框架；Oplus 暂缓代码不得在结构重构中修改行为。
 - `com.kyant.backdrop.catalog/`：SleepDown 修改过的第三方组件，保持原包名和许可说明。
 
