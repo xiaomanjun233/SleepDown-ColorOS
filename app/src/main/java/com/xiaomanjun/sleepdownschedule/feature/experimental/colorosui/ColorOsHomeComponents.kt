@@ -243,7 +243,7 @@ internal fun ColorOsHomeIconButton(
             val type = source.load(ColorOsNativeUi.ToolbarMaterial)
             val drawSpotLight = type.getMethod("drawSpotLight", Canvas::class.java)
             var effect: Any? = null
-            val icon = requireNotNull(ContextCompat.getDrawable(host, iconRes)).mutate()
+            val icon = requireNotNull(ContextCompat.getDrawable(host, colorOsHomeIconResource(iconRes))).mutate()
             icon.setTintList(source.color(context, "couiColorLabelPrimary"))
             val iconSize = (20 * context.resources.displayMetrics.density).toInt()
             val sizedIcon = object : DrawableWrapper(icon) {

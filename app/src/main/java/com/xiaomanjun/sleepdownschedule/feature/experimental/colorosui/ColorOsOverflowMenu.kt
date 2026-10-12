@@ -14,7 +14,7 @@ import com.xiaomanjun.sleepdownschedule.app.ui.AddMenuAction
 /** Provided only in parallel mode; ordinary mode keeps its current anchored menu. */
 internal val LocalColorOsOverflowMenu = compositionLocalOf<State<List<AddMenuAction>>?> { null }
 
-internal class NativeOverflowMenu(source: ColorOsNativeUi.Source, context: Context, private val host: Context) {
+internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, private val context: Context, private val host: Context) {
     private val type = source.load("com.coui.appcompat.poplist.COUIPopupListWindow")
     private val itemType = source.load("com.coui.appcompat.poplist.PopupListItem")
     private val window = type.getConstructor(Context::class.java).newInstance(context) as PopupWindow
@@ -60,7 +60,9 @@ internal class NativeOverflowMenu(source: ColorOsNativeUi.Source, context: Conte
         val constructor = itemType.getConstructor(Drawable::class.java, String::class.java,
             Boolean::class.javaPrimitiveType)
         val items = entries.map { action ->
-            constructor.newInstance(action.iconRes?.let { ContextCompat.getDrawable(host, it) }, action.label, true)
+            val icon = action.iconRes?.let { ContextCompat.getDrawable(host, colorOsHomeIconResource(it))?.mutate() }
+            icon?.setTintList(source.color(context, "couiColorLabelPrimary"))
+            constructor.newInstance(icon, action.label, true)
         }
         type.getMethod("setItemList", List::class.java).invoke(window, items)
         type.getMethod("show", View::class.java).invoke(window, anchor)
