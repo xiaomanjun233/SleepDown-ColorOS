@@ -2,11 +2,7 @@ package com.xiaomanjun.sleepdownschedule.coloros
 
 import android.content.Context
 import android.graphics.BlendMode
-import android.graphics.Canvas
-import android.graphics.ColorFilter
 import android.graphics.Color as AndroidColor
-import android.graphics.PixelFormat
-import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
@@ -23,35 +19,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.isSpecified
-import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCapsuleButtonRequest
-import com.xiaomanjun.sleepdownschedule.glass.withRecordingDensity
 
-/** COUI draws both material and Compose content inside its native touch-animation transform. */
+/** COUI supplies the material and motion; Compose draws live content using that same motion. */
 @Composable
 internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: @Composable RowScope.() -> Unit): Boolean {
     val native = rememberNativeContext(request.dark) ?: return false
@@ -88,13 +75,37 @@ internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: 
     } ?: return false
     val accent = if (primary) request.primaryColor.toArgb() else null
     val appearance = remember(button) { CapsuleAppearance() }
-    val density = LocalDensity.current
-    val contentLayer = rememberGraphicsLayer()
-    val nativeContent = remember(button, contentLayer) { CapsuleContentDrawable(contentLayer) }
-    DisposableEffect(button, nativeContent) {
-        button.overlay.add(nativeContent)
-        onDispose { button.overlay.remove(nativeContent) }
+    val motion = remember(button) { ColorOsCapsuleMotion() }
+    val motionBinding = remember(button) {
+        ColorOsNativeUi.prepare("bind native capsule content motion") {
+            ColorOsCapsuleMotionBinding(native.first, button, motion)
+        }
+    } ?: return false
+    NativeCapsuleButtonLayout(request, button, motion, update = {
+        val changed = it.isEnabled != request.enabled || appearance.accent != accent
+        it.isEnabled = request.enabled
+        if (primary && changed) native.first.applyCapsuleAccent(it, checkNotNull(accent))
+        appearance.accent = accent
+    }, content = content)
+    DisposableEffect(button, motionBinding) {
+        onDispose {
+            motionBinding.dispose()
+            button.setOnClickListener(null)
+            button.setOnTouchListener(null)
+        }
     }
+    return true
+}
+
+/** Normal Compose drawing keeps text, icons and loading content visible and invalidatable. */
+@Composable
+internal fun NativeCapsuleButtonLayout(
+    request: NativeCapsuleButtonRequest,
+    button: TextView,
+    motion: ColorOsCapsuleMotion,
+    update: (TextView) -> Unit,
+    content: @Composable RowScope.() -> Unit
+) {
     Box(request.modifier.height(request.height)
         .semantics(mergeDescendants = true) {
             role = Role.Button
@@ -108,60 +119,17 @@ internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: 
                 true
             } else false
         }.focusable(request.enabled), propagateMinConstraints = true) {
-        // Retain Compose measurement, semantics and arbitrary icon/loading content, but draw it
-        // through COUIButton's overlay. Its native animator scales/translates the whole View.
-        // The outer layer caches this recording so native animation invalidation does not
-        // re-record the label or feed an invalidate/record loop back into Compose.
-        Row(Modifier.graphicsLayer().drawWithContent {
-            contentLayer.record {
-                withRecordingDensity(density) { this@drawWithContent.drawContent() }
-            }
-            nativeContent.onContentRecorded(density, layoutDirection, size)
-        }.height(request.height).padding(request.contentPadding),
+        AndroidView(factory = { button }, modifier = Modifier.matchParentSize(), update = update)
+        // Read motion only in the layer block: native animation updates transform properties,
+        // without recomposing or recording the content through a foreign ViewOverlay canvas.
+        Row(Modifier.graphicsLayer { motion.applyTo(this) }
+            .height(request.height).padding(request.contentPadding),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically, content = content)
-        AndroidView(factory = { button }, modifier = Modifier.matchParentSize(), update = {
-            val changed = it.isEnabled != request.enabled || appearance.accent != accent
-            it.isEnabled = request.enabled
-            if (primary && changed) native.first.applyCapsuleAccent(it, checkNotNull(accent))
-            appearance.accent = accent
-        })
     }
-    DisposableEffect(button) {
-        onDispose { button.setOnClickListener(null); button.setOnTouchListener(null) }
-    }
-    return true
 }
 
 private class CapsuleAppearance { var accent: Int? = null }
-
-/** A display list, not a bitmap snapshot; the COUI View supplies the only motion transform. */
-private class CapsuleContentDrawable(private val layer: GraphicsLayer) : Drawable() {
-    private val scope = CanvasDrawScope()
-    private var density: Density = Density(1f)
-    private var direction = LayoutDirection.Ltr
-    private var size = Size.Zero
-
-    fun onContentRecorded(density: Density, direction: LayoutDirection, size: Size) {
-        this.density = density
-        this.direction = direction
-        this.size = size
-        setBounds(0, 0, size.width.toInt(), size.height.toInt())
-        invalidateSelf()
-    }
-
-    override fun draw(canvas: Canvas) {
-        if (size == Size.Zero || layer.isReleased) return
-        scope.draw(density, direction, androidx.compose.ui.graphics.Canvas(canvas), size) {
-            drawLayer(layer)
-        }
-    }
-
-    override fun setAlpha(alpha: Int) { layer.alpha = alpha / 255f; invalidateSelf() }
-    override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-    @Deprecated("Deprecated in Android")
-    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
-}
 
 internal fun ColorOsNativeUi.Source.configureCapsuleButton(view: TextView, primary: Boolean) {
     val type = load("com.coui.appcompat.button.COUIButton")
