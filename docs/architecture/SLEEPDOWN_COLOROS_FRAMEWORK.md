@@ -4,7 +4,7 @@
 
 ## 装配和边界
 
-- `MainActivity.kt` 的公共 `AppTheme` 安装框架；共用设计系统通过 `NativeAlertRenderer`、`NativeCapsuleButtonRenderer`、`NativeCourseCardRenderer` 接口调用，不依赖具体业务 feature。
+- `MainActivity.kt` 的公共 `AppTheme` 安装框架；共用设计系统通过 `NativeAlertRenderer`、`NativeCapsuleButtonRenderer`、`NativeCourseCardRenderer`、`NativeMaterialSurfaceRenderer` 接口调用，不依赖具体业务 feature。
 - `ColorOsNativeUi` 管理系统 APK、类加载器、资源、材质状态与跟手光；`ColorOsContext` 负责配对的主题 Context。
 - `ColorOsCapsuleButton`、`ColorOsDialogs`、`ColorOsSearchField` 是共用组件；Dock、首页按钮、菜单及课程卡适配也集中在框架中。
 - 不复制或打包系统 COUI 实现；运行时读取已安装、经过系统应用标志检查的 Settings / Contacts / FileManager。当前能力还受渠道、设备厂商和系统 API 支持约束，缺少组件时返回共用 Compose 实现。
@@ -18,7 +18,7 @@
 
 Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载状态的正常更新。`ColorOsCapsuleMotionBinding` 订阅 COUIButton 自身的 `COUITouchMotionAnimator`，从同一个 `ContributeSink` 取得位移与缩放；Row 只在 graphicsLayer 块中读取这些值，不在组合阶段读取，也不创建第二套弹簧。销毁时解除回调。旧的 ViewOverlay 跨 Canvas 录制方案已因实机文字消失撤回。
 
-普通按钮使用系统 secondary 材质，彩色操作使用 primary 材质并沿用操作颜色。primary 仅替换系统预设的主题颜色层，保留系统模糊半径、混合模式和禁用透明度；确认按钮指定应用主题色与白字。跟手光沿用系统默认光色和当前 2× 强度。
+普通按钮使用系统 secondary 材质。彩色操作沿用操作颜色，通过 `accentButtonBlurParams` 与加号共用颜色层写法：基于 `TYPE_FRAMEWORK_FAB`，第一层直接使用操作颜色，保留系统第二层和混合模式，颜色不再经 primary 预设的透明度衰减；总透明度 255，模糊半径为 FAB 预设的 0.85 倍。禁用按钮继续使用系统 disabled-primary 预设；确认按钮保持主题色与白字，删除等动作保留语义色。跟手光沿用系统默认光色和当前 2× 强度。
 
 `clickTargetEnabled = false` 的弹层外壳、输入区域和共享手势表面不是普通按钮，不会被该入口变成可点击胶囊。它们继续使用各自的几何、采样与手势宿主。
 
@@ -36,14 +36,25 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 - 展开的菜单与形变目标使用同一个中性色函数，避免壁纸亮度判断和菜单主题判断在交接处产生跳色。
 - 三点菜单在系统列表完成绑定后，同时设置 TextView、ImageView 与复合图标的前景色，避免原生适配器重新套用旧图标 tint。
 - Dock 和加号仍位于完整首页快照内；框架迁移不把它们移到根页面上方。完整采样、临时变换和快照的归属仍由页面宿主管理。
-- 壁纸主题色结合 Dock 区域实际可见背景亮度调整明度；深背景使用较亮主题色，浅背景提高对比度。加号底色单独保证白色图标对比度，形变起点与实际加号底色一致。
+- 壁纸主题色分为按钮原始色与 Dock 强调色：按钮恢复原来的 HSV 取色，只有 Dock 结合底部实际可见背景提高对比度。形变起点与实际加号底色一致。
+- Dock 跟手光保持 2× 原始强度，颜色与 Dock 强调色一致；重复更新材质不叠加强度。
+- 首页判为深色壁纸时，Dock、按钮及菜单恢复原生深色材质；浅色壁纸使用中性天气材质，无壁纸时使用应用明暗主题。前景继续与首页文字反色保持一致。
 - 原生 Dock 的后备内容通过稳定 State 传入，避免未使用的 Compose 后备函数捕获背景状态后改变原生宿主参数。shortcut 的整页模糊保留，动画进度只由绘制层读取；这一隔离不等同于实机重组次数已验证。
+- 课程共享模糊采样通过可跟踪的 `compositionLocalOf` 提供。个性化滑杆替换采样器时只更新课程消费者，不再让 static provider 刷新整页和原生 Dock。
 
 ## 课程 shortcut
 
 课程长按菜单复用右上角菜单的 `NativeOverflowMenu` / `COUIPopupListWindow`，由课程位置对应的透明 View 提供锚点。原生窗口负责面板材质、触摸和进入退出动画；背景仍由首页完整快照执行整页模糊，原生 Dock 处在同一快照内。编辑、复制与删除继续走原业务回调，移除项保留红色。
 
 关闭时等待原生窗口和首页背景退出均完成，再执行后续操作；reset、页面退出和拖拽接管会取消待执行动作。系统原生能力不可用时使用既有 Compose shortcut。
+
+锚点 View 与菜单使用相同的系统主题 Context。`PopupMenuLocateHelper` 会从 `anchor.context` 创建 `ResponsiveUIModel` 并读取系统栅格尺寸，不能传应用资源 Context。首次显示的反射异常记录到 `SleepDownCOUI` 并释放窗口，回到 Compose shortcut。该修订来自调用链检查，尚不等同于已获得用户手机的崩溃堆栈。
+
+## 表头与 AI 助手材质
+
+`NativeMaterialSurfaceRenderer` 复用课程凝光的原生背景 View，但不受课程凝光开关控制。周表头、日期状态胶囊、AI 卡片、会话外壳、提醒和输入框通过 glass / 设计系统入口使用该能力；缺少能力时保留原绘制。
+
+原生 View 负责模糊、描边和跟手光，Compose 负责文字、图标、布局和编辑输入。背景不拦截输入、不创建按钮点击行为；动态形状在 draw/layer 中读取并更新原生 outline，保留既有 AI 形变及快照归属。带颜色的日期状态胶囊使用与按钮相同的颜色参数。
 
 ## 课程凝光与渐变模糊
 
