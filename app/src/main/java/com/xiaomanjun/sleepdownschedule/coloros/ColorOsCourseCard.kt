@@ -106,7 +106,7 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
 @Composable
 internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Composable () -> Unit): Boolean {
     if (LocalNativeCourseCardMode.current?.enabled != true) return false
-    return ColorOsMaterialSurface(request, content)
+    return ColorOsMaterialSurface(request.copy(strokeWidthScale = 1.3f), content)
 }
 
 /** Shared native backdrop for cards, table headers and assistant shells, with no input interception. */
@@ -258,15 +258,31 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         // Keep the content-glass blur and course gradient; use the Dock's native edge/light
         // presets for stronger top/bottom highlights, without changing the card's outline.
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        if (blur && value.accent != null) {
+        if (blur && value.blurRadiusScale != 1f) {
             effect.getMethod("setViewBlurEffect", View::class.java,
                 source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
-                .invoke(null, this, source.accentButtonBlurParams(context, value.accent))
+                .invoke(null, this, source.weatherButtonBlurParams(context, value.blurRadiusScale))
         } else {
             setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
         }
-        setStroke.invoke(null, this, strokeType.getField(
-            if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
+        if (stroke && value.strokeWidthScale != 1f) {
+            val params = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$Companion\$StrokeEffectParams")
+            val preset = effect.getMethod("getStrokeParamsByType", Context::class.java, strokeType)
+                .invoke(null, context, strokeType.getField(CourseStrokePreset).get(null))
+            fun scalar(name: String) = params.getMethod(name).invoke(preset) as Float
+            // Widen Dock's light rim slightly along the existing outline. Keep its intensity,
+            // light angle and shadow falloff; no extra corner geometry or painted white border.
+            val widened = params.getConstructor(Int::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
+                .newInstance(params.getMethod("getStrokeType").invoke(preset), scalar("getEdgeAlpha"),
+                    scalar("getEdgeWidthDp") * value.strokeWidthScale, scalar("getEdgeAngle"),
+                    scalar("getShadowFadeIn"), scalar("getShadowFadeOut"), scalar("getShadowFadeScale"))
+            effect.getMethod("setViewStrokeEffect", View::class.java, params).invoke(null, this, widened)
+        } else {
+            setStroke.invoke(null, this, strokeType.getField(
+                if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
+        }
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
         invalidate()
     }

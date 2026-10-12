@@ -15,7 +15,8 @@ internal data class NativeMaterialSurfaceRequest(
     val shapeProvider: (() -> Shape)? = null,
     val surfaceAlpha: () -> Float = { 1f },
     val edgeEffects: Boolean = true,
-    val accent: Int? = null
+    val blurRadiusScale: Float = 1f,
+    val strokeWidthScale: Float = 1f
 )
 
 internal val LocalNativeMaterialSurfaceRenderer =

@@ -1771,6 +1771,8 @@ private fun WeekdayHeaderLabels(
 fun WeekHeaderPill(backdrop: Backdrop?, config: ScheduleConfigEntity, selected: Boolean, content: @Composable () -> Unit) {
     GlassSurface(
         nativeMaterial = true,
+        nativeBlurRadiusScale = 0.6f,
+        nativeStrokeWidthScale = 1.3f,
         backdrop = backdrop,
         config = config,
         modifier = Modifier.fillMaxSize(),

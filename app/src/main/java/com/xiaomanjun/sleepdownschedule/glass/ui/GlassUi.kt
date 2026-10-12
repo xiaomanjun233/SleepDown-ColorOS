@@ -1,6 +1,5 @@
 package com.xiaomanjun.sleepdownschedule.glass.ui
 
-import androidx.compose.ui.graphics.toArgb
 import com.xiaomanjun.sleepdownschedule.glass.insetShapeFor
 import androidx.compose.ui.graphics.drawscope.inset
 
@@ -550,12 +549,15 @@ fun GlassSurface(
     restShadowAlpha: Float = 0f,
     nativeMaterial: Boolean = false,
     nativeDark: Boolean? = null,
+    nativeBlurRadiusScale: Float = 1f,
+    nativeStrokeWidthScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     if (nativeMaterial) {
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
             modifier = modifier, shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
+            blurRadiusScale = nativeBlurRadiusScale, strokeWidthScale = nativeStrokeWidthScale,
             onClick = onClick,
             shapeProvider = if (morphAllocation != null) {
                 { morphAllocation.envelope.insetShapeFor(morphAllocation.geometry()) }
@@ -1029,9 +1031,24 @@ fun BlueStatusGlassPill(
     content: @Composable () -> Unit
 ) {
     val shape = Capsule()
+    val nativeTint: DrawScope.() -> Unit = remember(accentColor) {
+        var height = Float.NaN
+        var brush: Brush? = null
+        val paint: DrawScope.() -> Unit = {
+            if (height != size.height) {
+                height = size.height
+                // Keep the former 30% upper tint, then deepen it toward the lower rim.
+                brush = bottomLitGlassTintBrush(accentColor.copy(alpha = 0.5f), height,
+                    topTintFloor = 0.6f, expanded = true)
+            }
+            drawRect(requireNotNull(brush))
+        }
+        paint
+    }
     val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
     if (nativeSurface?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
-        modifier = modifier, shape = shape, dark = !glassUsesLightStyle(config), accent = accentColor.toArgb()
+        modifier = modifier, shape = shape, dark = !glassUsesLightStyle(config),
+        onDrawTint = nativeTint, blurRadiusScale = 0.6f, strokeWidthScale = 1.3f
     ), content) == true) return
     Box(modifier = modifier) {
         GlassSurface(
