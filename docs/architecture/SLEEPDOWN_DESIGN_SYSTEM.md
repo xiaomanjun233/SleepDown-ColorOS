@@ -36,7 +36,7 @@ core/ui/designsystem/
 
 页面级 Backdrop 和顶栏仍由既有 `DetailActivityScaffold` / `GlassMiuixDetailActivityScaffold` 管理。设计系统提供其下方的内容节奏，不接管 Activity、导航、Morph 或业务状态。
 
-ColorOS 派生版在应用组装层为公共入口提供 `NativeAlertRenderer`，由 `feature/experimental/colorosui` 加载已安装系统应用的 COUI 类和资源，核心设计系统不依赖实验 feature。非选择器 `LiquidAlertDialog` 优先使用原生中心窗口和按钮；中心表单的正文嵌入原生窗口，`CenterLiquidDialog` 在该窗口内只布局正文，避免再套玻璃表面。关闭拦截、校验和保存仍由业务决定。单选弹窗需标记 `isSelector = true`，`SleepDownPickerDialog` 保留原实现；系统库不可用或商店渠道时继续走本文原有组件。原生路径的触摸、默认光色和材质由 COUI 处理，不能叠加 Kyant 反馈。依据与验收范围见[中心弹窗接入](../reports/2026-10-12-coloros-centered-dialogs.md)。
+ColorOS 派生版在应用组装层为公共入口提供 `NativeAlertRenderer`，由 `feature/experimental/colorosui` 加载已安装系统应用的 COUI 类和资源，核心设计系统不依赖实验 feature。非选择器 `LiquidAlertDialog` 优先使用 COUI 默认窗口和按钮，位置、窗口尺寸、材质与动画按系统库原样配置，不强制居中或覆盖为 framework Dialog 动画；原中心表单的正文嵌入该窗口，`CenterLiquidDialog` 在其中只布局正文，避免再套玻璃表面。关闭拦截、校验和保存仍由业务决定。单选弹窗需标记 `isSelector = true`，`SleepDownPickerDialog` 保留原实现；系统库不可用或商店渠道时继续走本文原有组件。原生路径的触摸、默认光色和材质由 COUI 处理，不能叠加 Kyant 反馈。依据与验收范围见[原样弹窗及菜单转场](../reports/2026-10-12-coloros-default-dialog-transitions.md)。
 
 | 使用场景 | 统一入口 |
 | --- | --- |

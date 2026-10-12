@@ -1,5 +1,7 @@
 # ColorOS 教务顶栏及非选择器中心弹窗
 
+此文记录首个弹窗候选。用户随后澄清需要原样系统弹窗，包括默认位置、材质和动画；本候选的 `COUIAlertDialog.Center`、强制 CENTER 及 framework `Animation_Dialog` 已撤回，当前实现见[原样弹窗及菜单转场](2026-10-12-coloros-default-dialog-transitions.md)。下方构建哈希保留为历史证据。
+
 用户授权继续实现：教务页右上角按钮改为 ColorOS 样式，非选择器中心弹窗统一接入系统效果。此次与材质、搜索及菜单修复分别提交，便于独立回退。
 
 ## 接入范围

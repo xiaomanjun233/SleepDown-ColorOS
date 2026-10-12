@@ -8,7 +8,6 @@ import android.content.DialogInterface
 import android.graphics.Rect
 import android.os.Build
 import android.util.Log
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -74,17 +73,12 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
         ColorOsNativeUi.prepare("create a centered system alert") {
             source.updateTheme(context, request.dark)
             val builderType = source.load("com.coui.appcompat.dialog.COUIAlertDialogBuilder")
-            val builder = builderType.getConstructor(Context::class.java, Int::class.javaPrimitiveType)
-                .newInstance(context, source.resource("COUIAlertDialog.Center", "style"))
+            // Use COUI's default dialog, including its own placement and window animation style.
+            val builder = builderType.getConstructor(Context::class.java).newInstance(context)
             builderType.getMethod("setTitle", CharSequence::class.java).invoke(builder, request.title)
             if (request.message.isNotBlank()) builderType.getMethod("setMessage", CharSequence::class.java)
                 .invoke(builder, request.message)
-            builderType.getMethod("setWindowGravity", Int::class.javaPrimitiveType).invoke(builder, Gravity.CENTER)
             builderType.getMethod("setBlurBackgroundDrawable", Boolean::class.javaPrimitiveType).invoke(builder, true)
-            // Foreign APK style IDs cannot be resolved in WindowManager under our package.
-            // Framework window animation resources are resolved by the system on every device.
-            builderType.getMethod("setWindowAnimStyle", Int::class.javaPrimitiveType)
-                .invoke(builder, android.R.style.Animation_Dialog)
             check(request.actions.size <= 3) { "System alerts support up to three actions" }
             val recommended = request.actions.indexOfLast { it.style == LiquidAlertActionStyle.Primary }
                 .takeIf { it >= 0 } ?: request.actions.lastIndex
@@ -125,6 +119,11 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
             } else null
             val dialog = builderType.getMethod("create").invoke(builder) as AndroidDialog
             host.activityOrNull()?.let(dialog::setOwnerActivity)
+            dialog.window?.let { window ->
+                // WindowManager must resolve COUI's animation ID in the APK that owns it.
+                // The Activity token, app context and process UID remain SleepDown's.
+                window.attributes = window.attributes.apply { packageName = source.packageName }
+            }
             NativeAlert(dialog, compose, slots, source, context) { latest.value }
         }
     } ?: return false
@@ -171,7 +170,9 @@ private class NativeAlert(
             dismissGuard = NativeFormDismissGuard(dialog, source) { request().onDismissRequest() }
         }
         update()
-        Log.i("SleepDownCOUI", "Centered system alert shown: buttons=${slots.size}, customContent=${compose != null}")
+        Log.i("SleepDownCOUI", "System dialog shown: buttons=${slots.size}, customContent=${compose != null}, " +
+            "gravity=${dialog.window?.attributes?.gravity}, animation=${dialog.window?.attributes?.windowAnimations}, " +
+            "animationPackage=${dialog.window?.attributes?.packageName}")
     }
 
     fun update() {
@@ -269,7 +270,7 @@ private class NativeFormDismissGuard(dialog: AndroidDialog, source: ColorOsNativ
     }
 }
 
-/** Full forms retain their business content and picker host inside a native centered window. */
+/** Full forms retain their business content and picker host inside COUI's original dialog. */
 @Composable
 internal fun ColorOsOrComposeDialog(config: ScheduleConfigEntity, onDismissRequest: () -> Unit, visible: Boolean = true,
     content: @Composable () -> Unit) {
