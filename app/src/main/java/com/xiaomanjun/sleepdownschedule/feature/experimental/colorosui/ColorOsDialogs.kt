@@ -70,7 +70,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
     val actionLayout = request.actions.map { it.label to it.style }
     var showFailed by remember(native, request.dark, actionLayout) { mutableStateOf(false) }
     val control = remember(native, request.dark, actionLayout, request.messageContent != null, request.deferDismissUntilHost) {
-        ColorOsNativeUi.prepare("create a centered system alert") {
+        ColorOsNativeUi.prepare("create a system alert") {
             source.updateTheme(context, request.dark)
             val builderType = source.load("com.coui.appcompat.dialog.COUIAlertDialogBuilder")
             // Use COUI's default dialog, including its own placement and window animation style.
@@ -124,12 +124,12 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
                 // The Activity token, app context and process UID remain SleepDown's.
                 window.attributes = window.attributes.apply { packageName = source.packageName }
             }
-            NativeAlert(dialog, compose, slots, source, context) { latest.value }
+            NativeAlert(dialog, builder, compose, slots, source, context) { latest.value }
         }
     } ?: return false
     if (showFailed) return false
     DisposableEffect(control) {
-        if (ColorOsNativeUi.prepare("show a centered system alert") { control.show(); true } != true) {
+        if (ColorOsNativeUi.prepare("show a system alert") { control.show(); true } != true) {
             control.dispose()
             showFailed = true
         }
@@ -141,6 +141,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
 
 private class NativeAlert(
     val dialog: AndroidDialog,
+    private val builder: Any,
     private val compose: ComposeView?,
     private val slots: List<Int>,
     private val source: ColorOsNativeUi.Source,
@@ -150,6 +151,9 @@ private class NativeAlert(
     private var disposed = false
     private var pending: (() -> Unit)? = null
     private var dismissGuard: NativeFormDismissGuard? = null
+    private var displayedTitle: String? = null
+    private var displayedMessage: String? = null
+    private var actionsBound = false
 
     fun show() {
         dialog.setOnCancelListener { pending = request().onDismissRequest }
@@ -166,6 +170,12 @@ private class NativeAlert(
             dialog.setCanceledOnTouchOutside(false)
         }
         dialog.show()
+        // COUIAlertDialogBuilder.show() performs this after Dialog.show(), before the first
+        // window traversal. create()+show() alone never installs its blur attach listener or
+        // initializes the COUIButtonBarLayout. Keep our pre-show ownership/dismiss configuration.
+        builder.javaClass.getDeclaredMethod("disabledTitleScroll", source.load("androidx.appcompat.app.AlertDialog"))
+            .apply { isAccessible = true }.invoke(builder, dialog)
+        builder.javaClass.getMethod("updateViewAfterShown").invoke(builder)
         if (request().deferDismissUntilHost) {
             dismissGuard = NativeFormDismissGuard(dialog, source) { request().onDismissRequest() }
         }
@@ -173,24 +183,38 @@ private class NativeAlert(
         Log.i("SleepDownCOUI", "System dialog shown: buttons=${slots.size}, customContent=${compose != null}, " +
             "gravity=${dialog.window?.attributes?.gravity}, animation=${dialog.window?.attributes?.windowAnimations}, " +
             "animationPackage=${dialog.window?.attributes?.packageName}")
+        dialog.window?.decorView?.post {
+            if (!disposed && dialog.isShowing) ColorOsNativeUi.prepare("inspect attached dialog material") {
+                val blur = builder.javaClass.getDeclaredField("mBackgroundBlurBuilder")
+                    .apply { isAccessible = true }.get(builder)
+                val blurry = blur.javaClass.getMethod("isBlurryState").invoke(blur)
+                Log.i("SleepDownCOUI", "System dialog material attached: windowBlur=$blurry, " +
+                    "hardware=${dialog.window?.decorView?.isHardwareAccelerated}")
+            }
+        }
     }
 
     fun update() {
         if (disposed || !dialog.isShowing) return
         val current = request()
         if (!current.visible) { pending = {}; dialog.dismiss(); return }
-        dialog.setTitle(current.title)
-        if (compose == null) dialog.javaClass.getMethod("setMessage", CharSequence::class.java)
-            .invoke(dialog, current.message)
+        if (displayedTitle != current.title) {
+            dialog.setTitle(current.title)
+            displayedTitle = current.title
+        }
+        if (compose == null && displayedMessage != current.message) {
+            dialog.javaClass.getMethod("setMessage", CharSequence::class.java).invoke(dialog, current.message)
+            displayedMessage = current.message
+        }
         current.actions.forEachIndexed { index, action ->
             val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
                 .invoke(dialog, slots[index]) as TextView
-            button.isEnabled = action.enabled
-            if (action.style == LiquidAlertActionStyle.Destructive) {
+            if (button.isEnabled != action.enabled) button.isEnabled = action.enabled
+            if (!actionsBound && action.style == LiquidAlertActionStyle.Destructive) {
                 button.setTextColor(source.color(context, "couiColorError"))
             }
             // Replace only click dispatch; native press/spotlight remains on the original COUIButton.
-            button.setOnClickListener {
+            if (!actionsBound) button.setOnClickListener {
                 val active = request().actions[index]
                 if (active.enabled) {
                     if (active.dismissOnClick) { pending = active.onClick; dialog.dismiss() }
@@ -198,6 +222,7 @@ private class NativeAlert(
                 }
             }
         }
+        actionsBound = true
     }
 
     fun dispose() {
@@ -341,8 +366,15 @@ internal fun ColorOsDialogButton(request: NativeDialogButtonRequest): Boolean {
             val type = native.first.load("com.coui.appcompat.button.COUIButton")
             val view = type.getConstructor(Context::class.java).newInstance(native.second) as TextView
             val buttonType = native.first.load("${type.name}\$ButtonType")
-            type.getMethod("setButtonType", buttonType).invoke(view,
-                buttonType.getField(if (request.primary) "PRIMARY" else "SECONDARY").get(null))
+            val kind = buttonType.getField(if (request.primary) "PRIMARY" else "SECONDARY").get(null)
+            type.getMethod("setButtonType", buttonType).invoke(view, kind)
+            val materialState = native.first.load("${type.name}\$MaterialEffectState")
+            // Pass the type together with the material state: the one-argument setter resets
+            // the button type to UNKNOWN. Custom form buttons are outside COUI's button panel.
+            type.getMethod("setUseMaterialEffectAttr", materialState, buttonType).invoke(view,
+                materialState.getField("FOLLOW_SYSTEM").get(null),
+                kind)
+            type.getMethod("setIsDrawableMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, false)
             view
         }
     } ?: return false

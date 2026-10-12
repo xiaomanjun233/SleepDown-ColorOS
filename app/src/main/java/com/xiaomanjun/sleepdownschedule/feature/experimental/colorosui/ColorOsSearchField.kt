@@ -73,6 +73,9 @@ internal fun ColorOsSchoolSearchField(
                 override fun afterTextChanged(s: Editable?) = Unit
             }
             NativeSearch(view, edit, listener, watcher).also { control ->
+                // COUISearchBar forwards this listener to its search capsule. It does not bind
+                // an expand click itself; changeState owns both native animation and IME focus.
+                view.setOnClickListener { control.open() }
                 edit.setText(value)
                 edit.addTextChangedListener(watcher)
                 edit.setOnEditorActionListener { _, action, _ ->
@@ -90,7 +93,9 @@ internal fun ColorOsSchoolSearchField(
     }
     BackHandler(enabled = editing) { search.close() }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val width = if (largeScreen) (maxWidth * 0.5f).coerceAtLeast(260.dp) else maxWidth - 32.dp
+        // COUI already reserves responsive horizontal padding (16dp on compact windows).
+        // Give it the full layout envelope instead of subtracting the same inset a second time.
+        val width = if (largeScreen) (maxWidth * 0.5f).coerceAtLeast(260.dp).coerceAtMost(maxWidth) else maxWidth
         AndroidView(factory = { search.view }, modifier = Modifier.align(Alignment.BottomCenter)
             .width(width).height(height)
             .offset(y = -bottomOffset + 52.dp * (1f - entranceProgress.coerceIn(0f, 1f)))
@@ -106,6 +111,16 @@ internal fun ColorOsSchoolSearchField(
 }
 
 private class NativeSearch(val view: ViewGroup, val edit: EditText, val listener: Any, val watcher: TextWatcher) {
+    fun open() {
+        val type = view.javaClass
+        if (type.getMethod("getSearchState").invoke(view) == type.getField("STATE_EDIT").getInt(null)) {
+            type.getMethod("openSoftInput", Boolean::class.javaPrimitiveType).invoke(view, true)
+        } else {
+            type.getMethod("changeState", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+                .invoke(view, type.getField("STATE_EDIT").getInt(null), true)
+        }
+    }
+
     fun setQuery(query: String) {
         if (edit.text.toString() == query) return
         edit.removeTextChangedListener(watcher)
@@ -128,6 +143,7 @@ private class NativeSearch(val view: ViewGroup, val edit: EditText, val listener
     }
 
     fun dispose() {
+        view.setOnClickListener(null)
         edit.removeTextChangedListener(watcher)
         edit.setOnEditorActionListener(null)
         view.javaClass.getMethod("removeOnStateChangeListener", listener.javaClass.interfaces.first()).invoke(view, listener)
