@@ -14,6 +14,7 @@ import android.view.LayoutInflater
 import android.view.View
 import com.xiaomanjun.sleepdownschedule.BuildConfig
 import java.lang.reflect.Proxy
+import java.util.WeakHashMap
 
 /** Loads code and resources from the same installed system APK; no vendor code is bundled. */
 internal object ColorOsNativeUi {
@@ -70,6 +71,8 @@ internal object ColorOsNativeUi {
         private val materialManagerType by lazy { load("com.coui.appcompat.COUIMaterialStateManager") }
         private val materialManager by lazy { materialManagerType.getField("INSTANCE").get(null) }
         private var materialObserverRegistered = false
+        private var materialConfiguration: Configuration? = null
+        private val dockLightIntensity = WeakHashMap<Any, Pair<Float, Float>>()
 
         fun load(name: String): Class<*> = native.classLoader.loadClass(name)
         fun resource(name: String, type: String): Int = native.resources.getIdentifier(name, type, packageName)
@@ -88,15 +91,27 @@ internal object ColorOsNativeUi {
             val light = field.get(owner) ?: return
             light.javaClass.getMethod("setLightColor", Float::class.javaPrimitiveType,
                 Float::class.javaPrimitiveType, Float::class.javaPrimitiveType).invoke(light,
-                // A saturated accent absorbs most of the native white light. Keep its hue,
-                // but lift the light towards white without changing the system's touch springs.
-                0.55f + 0.45f * Color.red(accent) / 255f,
-                0.55f + 0.45f * Color.green(accent) / 255f,
-                0.55f + 0.45f * Color.blue(accent) / 255f)
+                // Dock selection and follow light share the exact wallpaper accent.
+                Color.red(accent) / 255f,
+                Color.green(accent) / 255f,
+                Color.blue(accent) / 255f)
+            if (owner is View && !owner.isAttachedToWindow) return
+            val shader = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
+                ?: return
+            val range = dockLightIntensity.getOrPut(light) {
+                val type = shader.javaClass
+                type.getDeclaredField("mStartIntensity").apply { isAccessible = true }.getFloat(shader) to
+                    type.getDeclaredField("mEndIntensity").apply { isAccessible = true }.getFloat(shader)
+            }
+            // Cache the original range so repeated theme/selection refreshes do not multiply it.
+            // Only Dock hosts call this helper; retain native fade, radius and touch springs.
+            light.javaClass.getMethod("setIntensityRange", Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType).invoke(light, range.first, range.second * 1.5f)
         }
 
         fun themedContext(host: Context, dark: Boolean): Context {
-            return NativeThemeContext(host, dark).also { configureMaterial(it) }
+            configureMaterial(host.applicationContext)
+            return NativeThemeContext(host, dark)
         }
 
         /** Update resources and theme in place: bound native views and their springs stay alive. */
@@ -154,7 +169,15 @@ internal object ColorOsNativeUi {
                 override fun getClassLoader(): ClassLoader = native.classLoader
             }
 
-        private fun configureMaterial(context: Context) {
+        private fun configureMaterial(host: Context) {
+            val configuration = Configuration(host.resources.configuration)
+            if (materialObserverRegistered && materialConfiguration == configuration) return
+            // The manager is process-wide. Creating a dialog/card theme must not broadcast a
+            // configuration change to every dock and toolbar listener or replace its global
+            // context with a component's wallpaper-specific light/dark choice.
+            val context = NativeThemeContext(host,
+                configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES,
+                configuration)
             if (!materialObserverRegistered) {
                 val flags = listOf("FLAG_MATERIAL_STROKE", "FLAG_MATERIAL_BLUR",
                     "FLAG_MATERIAL_SPOTLIGHT", "FLAG_MATERIAL_CAUSTIC_SHADOW")
@@ -168,6 +191,7 @@ internal object ColorOsNativeUi {
                 materialManagerType.getMethod("onConfigurationChange", Context::class.java)
                     .invoke(materialManager, context)
             }
+            materialConfiguration = configuration
             val states = listOf("materialVersionCheck", "isFeatureEnabled", "isBlurEffectEnable",
                 "isStrokeEffectEnable", "isSpotLightEffectEnable", "isCausticShadowEffectEnable")
                 .joinToString { name -> "$name=${materialManagerType.getMethod(name).invoke(materialManager)}" }

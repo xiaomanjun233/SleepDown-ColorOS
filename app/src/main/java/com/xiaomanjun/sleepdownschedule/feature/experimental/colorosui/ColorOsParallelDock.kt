@@ -44,6 +44,7 @@ import com.xiaomanjun.sleepdownschedule.app.ui.dockImeCompensationPx
 import com.xiaomanjun.sleepdownschedule.feature.agent.excludeHomeAssistantPull
 import com.xiaomanjun.sleepdownschedule.glass.withRecordingDensity
 import java.lang.reflect.Method
+import java.util.concurrent.atomic.AtomicBoolean
 
 private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView, val setClick: Method,
     private var accent: Int) {
@@ -146,6 +147,7 @@ internal fun ColorOsParallelHomeDock(
     val canOpen = rememberUpdatedState(selectedIndex < 2 && !buttonHidden)
     val returnLayer = rememberGraphicsLayer()
     val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
+    val returnRecorded = remember(native, dark, accent, density.density) { AtomicBoolean(false) }
     val group = remember(native, host, composeRoot) {
         ColorOsNativeUi.prepare("create the native 3+1 dock") {
             val tabs = listOf(R.drawable.ic_day_view to "今日", R.drawable.ic_week_view to "课程表",
@@ -193,8 +195,11 @@ internal fun ColorOsParallelHomeDock(
             .graphicsLayer { translationY = compensation.toFloat() }) {
             // Record only the resting native FAB for the existing menu handoff; do not paint this copy.
             Box(Modifier.size(fabSize).clearAndSetSemantics {}.drawWithContent {
-                returnLayer.record {
-                    withRecordingDensity(density) { this@drawWithContent.drawContent() }
+                if (!returnRecorded.get()) {
+                    returnLayer.record {
+                        withRecordingDensity(density) { this@drawWithContent.drawContent() }
+                    }
+                    returnRecorded.set(true)
                 }
             }) { ColorOsHomeFloatingButtonVisual(dark, Modifier.fillMaxSize()) }
             key(group) {

@@ -303,9 +303,11 @@ internal fun ColorOsHomeIconButton(
     val overflowEntries = LocalColorOsOverflowMenu.current
         ?.takeIf { iconRes == R.drawable.ic_more_horizontal }
     val menuEntries = rememberUpdatedState(overflowEntries?.value.orEmpty())
-    val menu = remember(button, overflowEntries != null) {
+    val menu = remember(button, overflowEntries != null, dark) {
         if (overflowEntries == null) null else ColorOsNativeUi.prepare("create the native overflow menu") {
-            NativeOverflowMenu(source, context, host)
+            // Popup parses its surface/text colors once in its constructor. A separate context
+            // follows the button's adaptive material theme, including after wallpaper changes.
+            NativeOverflowMenu(source, source.themedContext(host, dark), host)
         }
     }
     key(context, iconRes) {
