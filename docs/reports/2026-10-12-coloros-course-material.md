@@ -22,9 +22,7 @@
 
 `glass/` 只提供课程颜色的纵向渐变着色，原生背景 View 在系统采样之后、原生触摸光之前调用该绘制；渐变 Brush 按卡片高度缓存，没有额外背景采样或 RenderEffect。上一版错误地一起叠加了旧轮廓边缘光、白色描边及白/黑明暗绘制，用户反馈观感偏离系统；此次从凝光路径移除这些绘制，原模式仍保留。文字对比度仅估计实际着色，不随系统轮廓强度变化。
 
-固定轮廓直接调用原生 `setViewStrokeEffect(View, StrokeEffectParams)`，从 `TYPE_CONTENT_CAPSULE_1` 取得配置，仅将 edgeAlpha 提到 2×（上限 1），保留原生边宽、角度与阴影衰减。凝光轮廓不再被旧 `courseCardOutlineLightEnabled` 或保存过的轮廓滑杆值关掉；仍服从系统轮廓开关与页面材质可见性。移除对应滑杆、预览回调和旧偏好读取，不清除用户数据。
-
-卡片尺寸确定及变化后重新挂载原生材质，使用实际 Shape 圆角生成 `OplusMaterialCornerParams`；原生 View 与 COUI 一样禁用自身 clipToOutline，外部内容仍按课程 Shape 裁剪。仅设置 Android View outline 不等于已经给厂商材质传圆角，挂载时零尺寸也不能代替布局完成后的更新。
+曾尝试使用自定义 StrokeEffectParams 将 edgeAlpha 提到 2×，并额外设置 OplusMaterialCornerParams；用户实机反馈产生异常胶囊轮廓，要求恢复初版。这些参数已撤回，当前恢复首版 `14e0f75` 的 enum 原生预设调用与 `clipToOutline=true`，仅叠加课程颜色渐变，保留布局尺寸变化后的材质刷新。轮廓仍服从系统开关与页面可见性，不读取旧轮廓滑杆值，也不恢复调节入口。具体变化见[Dock 可读性与课程回退](2026-10-12-coloros-dock-contrast.md)。
 
 所有 COUI 跟手光按用户确认固定为系统基准的 2×，课程卡片也不提供跟手光滑杆。首页 Dock 后续按天气参考改用中性光色，设置页保留先前光色，其余控件保持系统默认光色。控件挂载完成或系统材质状态变化后执行一次强度更新，detach 注销监听；每个原生 effect 保存基准与上次应用值，主题重复更新不会把 2× 累乘成 4×。这不是动画帧轮询。
 

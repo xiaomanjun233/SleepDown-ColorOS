@@ -44,7 +44,6 @@ private const val CourseMaterialEnabled = "enabled"
 private const val CourseTintStrength = "tint_strength"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
 private const val StrokeType = "com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType"
-private const val StrokeParams = "com.coui.appcompat.COUIMaterialStrokeEffect\$Companion\$StrokeEffectParams"
 private const val LightDrawable = "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable"
 private const val LightType = "com.coui.appcompat.spotlight.COUISpotLightEffect\$SpotLightType"
 
@@ -57,7 +56,7 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
         ColorOsNativeUi.prepare("check course card material capability") {
             source.load(MaterialEffect).getMethod("canApplyBackgroundRenderEffect").invoke(null) == true &&
                 source.load(StrokeType).getField("TYPE_CONTENT_CAPSULE_1").get(null) != null &&
-                source.load(MaterialEffect).getMethod("setViewStrokeEffect", View::class.java, source.load(StrokeParams)) != null &&
+                source.load(MaterialEffect).getMethod("setViewStrokeEffect", View::class.java, source.load(StrokeType)) != null &&
                 source.load(LightDrawable).getMethod("onTouchEvent", MotionEvent::class.java) != null
         } == true
     }
@@ -132,11 +131,6 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
     private val strokeType = source.load(StrokeType)
     private val setBlur = effect.getMethod("setViewBlurEffect", View::class.java, baseParamsType)
     private val setStroke = effect.getMethod("setViewStrokeEffect", View::class.java, strokeType)
-    private val strokeParamsType = source.load(StrokeParams)
-    private val getStrokeParams = effect.getMethod("getStrokeParamsByType", Context::class.java, strokeType)
-    private val applyStroke = effect.getMethod("setViewStrokeEffect", View::class.java, strokeParamsType)
-    private var strokeDark: Boolean? = null
-    private var strokeTo: Any? = null
     private val managerType = source.load("com.coui.appcompat.COUIMaterialStateManager")
     private val manager = managerType.getField("INSTANCE").get(null)
     private val light = source.load(LightDrawable).getConstructor().newInstance() as Drawable
@@ -154,8 +148,7 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
     }
 
     init {
-        // Oplus material owns its edge geometry; native COUI views also disable this clip.
-        clipToOutline = false
+        clipToOutline = true
         isClickable = false
         isFocusable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -208,16 +201,6 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
     private fun applyMaterial() {
         val value = request ?: return
         if (width <= 0 || height <= 0) return
-        val radius = when (val shape = value.shape) {
-            is com.kyant.shapes.RoundedRectangularShape -> shape.corners(
-                Size(width.toFloat(), height.toFloat()), tintDirection, tintDensity).topLeft
-            else -> (shape.createOutline(Size(width.toFloat(), height.toFloat()), tintDirection, tintDensity)
-                as? Outline.Rounded)?.roundRect?.topLeftCornerRadius?.x ?: 0f
-        }
-        val cornerType = source.load("com.oplus.view.material.OplusMaterialCornerParams")
-        effect.getMethod("setCornerParams", View::class.java, cornerType).invoke(null, this,
-            cornerType.getConstructor(Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
-                .newInstance(radius, 1f))
         val blur = value.materialVisible && value.blurRadiusPx > 0f && managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
         val stroke = value.materialVisible && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
         val glow = value.materialVisible && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
@@ -236,23 +219,9 @@ private class NativeCourseSurface(context: Context, private val source: ColorOsN
             setBackgroundColor(if (value.onDrawTint != null) android.graphics.Color.TRANSPARENT
                 else value.color.copy(alpha = value.tintAlpha).toArgb())
         }
-        if (!stroke) {
-            setStroke.invoke(null, this, strokeType.getField("TYPE_NO_EFFECT").get(null))
-        } else {
-            if (strokeDark != value.dark) {
-                val preset = getStrokeParams.invoke(null, context, strokeType.getField("TYPE_CONTENT_CAPSULE_1").get(null))
-                fun number(name: String) = strokeParamsType.getMethod(name).invoke(preset) as Float
-                strokeTo = strokeParamsType.getConstructor(Int::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
-                    .newInstance(strokeParamsType.getMethod("getStrokeType").invoke(preset),
-                        (number("getEdgeAlpha") * 2f).coerceAtMost(1f), number("getEdgeWidthDp"),
-                        number("getEdgeAngle"), number("getShadowFadeIn"), number("getShadowFadeOut"), number("getShadowFadeScale"))
-                strokeDark = value.dark
-            }
-            // Fixed native contour, independent of the legacy outline switch or saved slider.
-            applyStroke.invoke(null, this, strokeTo)
-        }
+        // Restore the first version's native preset and shape clipping; retain course gradient only.
+        setStroke.invoke(null, this, strokeType.getField(
+            if (stroke) "TYPE_CONTENT_CAPSULE_1" else "TYPE_NO_EFFECT").get(null))
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
         source.setFollowLightIntensity(light)
         invalidate()
