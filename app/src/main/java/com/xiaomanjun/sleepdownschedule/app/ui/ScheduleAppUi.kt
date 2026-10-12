@@ -285,6 +285,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
@@ -2395,6 +2396,36 @@ fun CourseScheduleAppUi(
     val homeCourseClick = remember {
         { course: CourseEntity, week: Int, bounds: Rect? -> currentHomeCourseClick.value(course, week, bounds) }
     }
+    // Keep callback identity independent of overlay state. The latest guards and navigation
+    // inputs are read only when the user acts, not while a shortcut animates its background.
+    val currentDockSelect = rememberUpdatedState<(Int) -> Unit> { index ->
+        if (index == 2) {
+            sidebarPage = HomeSidebarDestination.Settings
+            screen = Screen.Config
+        } else requestSettingsExit {
+            homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
+            screen = Screen.Home
+        }
+    }
+    val dockSelect = remember { { index: Int -> currentDockSelect.value(index) } }
+    val currentOrdinaryDockHome = rememberUpdatedState<() -> Unit> {
+        requestSettingsExit { screen = Screen.Home }
+    }
+    val ordinaryDockHome = remember { { currentOrdinaryDockHome.value() } }
+    val currentDockOpenMenu = rememberUpdatedState<(Rect, GraphicsLayer) -> Unit> { bounds, returnButtonLayer ->
+        if (!homeBackgroundOverlayActive && !homeDialogVisible) {
+            dockImportReturnLayer = returnButtonLayer
+            dockImportButtonBounds = bounds
+            homeMenuFromDock = true
+            homeAddMenuBoundsInRoot = null
+            homeAnchoredOverlayRequest = HomeAnchoredOverlayRequest(
+                HomeAnchoredOverlayKind.Add, bounds, fromDock = true
+            )
+        }
+    }
+    val dockOpenMenu = remember {
+        { bounds: Rect, layer: GraphicsLayer -> currentDockOpenMenu.value(bounds, layer) }
+    }
     CompositionLocalProvider(
         LocalHomeAssistant provides homeAssistant,
         LocalDayAgentCountdownCinematic provides dayAgentCountdownCinematic,
@@ -2636,55 +2667,10 @@ fun CourseScheduleAppUi(
         val nativeDockOutsideBackground = remember(context) {
             com.xiaomanjun.sleepdownschedule.feature.experimental.colorosui.ColorOsNativeUi.source(context) != null
         }
-        val renderHomeDock: @Composable BoxScope.() -> Unit = {
-            if (!homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)) {
-                DockEntranceContainer(
-                    phase = startupPhase,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .zIndex(100f)
-                        .homeCountdownShockwave(0.85f)
-                ) {
-                    if (parallelPhoneNavigation) {
-                        ParallelHomeDock(
-                            selectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1,
-                            backdrop = chromeBackdrop,
-                            config = if (screen is Screen.Home) visualState.config else state.config,
-                            onSelect = { index ->
-                                if (index == 2) {
-                                    sidebarPage = HomeSidebarDestination.Settings
-                                    screen = Screen.Config
-                                } else requestSettingsExit {
-                                    homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
-                                    screen = Screen.Home
-                                }
-                            },
-                            buttonHidden = homeMenuFromDock && addButtonHidden,
-                            onOpenMenu = { bounds, returnButtonLayer ->
-                                if (!homeBackgroundOverlayActive && !homeDialogVisible) {
-                                    dockImportReturnLayer = returnButtonLayer
-                                    dockImportButtonBounds = bounds
-                                    homeMenuFromDock = true
-                                    homeAddMenuBoundsInRoot = null
-                                    homeAnchoredOverlayRequest = HomeAnchoredOverlayRequest(
-                                        HomeAnchoredOverlayKind.Add, bounds, fromDock = true
-                                    )
-                                }
-                            }
-                        )
-                    } else FloatingDock(
-                        selected = screen,
-                        backdrop = chromeBackdrop,
-                        config = if (screen is Screen.Home) visualState.config else state.config,
-                        onHome = { requestSettingsExit { screen = Screen.Home } },
-                        onConfig = {
-                            sidebarPage = HomeSidebarDestination.Settings
-                            screen = Screen.Config
-                        }
-                    )
-                }
-            }
-        }
+        val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)
+        val dockSelectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1
+        val dockConfig = if (screen is Screen.Home) visualState.config else state.config
+        val dockButtonHidden = homeMenuFromDock && addButtonHidden
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -3158,7 +3144,19 @@ fun CourseScheduleAppUi(
                 showScheduleEntryPill = false
                 if (pickerState.phase is CustomizeUiState.ShowingEntryButton) pickerState.phase = CustomizeUiState.Home
             }
-            if (!nativeDockOutsideBackground) renderHomeDock()
+            if (!nativeDockOutsideBackground) HomeDockChrome(
+                visible = dockVisible,
+                parallel = parallelPhoneNavigation,
+                selectedIndex = dockSelectedIndex,
+                config = dockConfig,
+                backdrop = chromeBackdrop,
+                phase = startupPhase,
+                buttonHidden = dockButtonHidden,
+                onSelect = dockSelect,
+                onOrdinaryHome = ordinaryDockHome,
+                onOpenMenu = dockOpenMenu,
+                modifier = Modifier.align(Alignment.BottomStart).zIndex(100f)
+            )
         }
         }
 
@@ -3304,7 +3302,21 @@ fun CourseScheduleAppUi(
 
     // Native RenderNode material is its own consumer. Keep it outside the full-screen
     // blur/zoom producer used by plus menus, centered overlays and course shortcuts.
-    if (nativeDockOutsideBackground) renderHomeDock()
+    // This is now a root sibling. The old local zIndex(100) would cover root overlays;
+    // draw after the background, at its normal z-order, and below modal consumers.
+    if (nativeDockOutsideBackground) HomeDockChrome(
+        visible = dockVisible,
+        parallel = parallelPhoneNavigation,
+        selectedIndex = dockSelectedIndex,
+        config = dockConfig,
+        backdrop = chromeBackdrop,
+        phase = startupPhase,
+        buttonHidden = dockButtonHidden,
+        onSelect = dockSelect,
+        onOrdinaryHome = ordinaryDockHome,
+        onOpenMenu = dockOpenMenu,
+        modifier = Modifier.align(Alignment.BottomStart)
+    )
 
     val latestOpenHomeMenuDestination = rememberUpdatedState<(HomeMenuDestinationKind) -> Unit> {
         kind -> openHomeMenuDestination(kind)
