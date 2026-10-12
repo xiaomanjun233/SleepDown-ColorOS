@@ -76,11 +76,7 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
     fun applyMaterial() {
         if (!neutral || !main.isAttachedToWindow || !source.blurEnabled()) return
         val base = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
-        val themeType = source.load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect\$ThemeBlurEffectType")
-        val preset = root.javaClass.getDeclaredMethod("getNonThemeFabColor", ColorStateList::class.java, themeType)
-            .apply { isAccessible = true }.invoke(root, ColorStateList.valueOf(accent),
-                themeType.getField("TYPE_FRAMEWORK_FAB").get(null))
-        val params = source.homeFabBlurParams(root.context, preset)
+        val params = source.accentButtonBlurParams(root.context, accent)
         source.load("com.coui.appcompat.COUIMaterialEffect")
             .getMethod("setViewBlurEffect", View::class.java, base)
             .invoke(null, main, params)
@@ -126,7 +122,7 @@ internal fun ColorOsHomeFloatingButtonVisual(dark: Boolean, modifier: Modifier):
     val effectiveDark = style?.dark ?: dark
     val native = rememberNativeContext(effectiveDark) ?: return false
     val host = LocalContext.current
-    val accent = colorOsAccentForWhiteIcon(dockAccent(native.first, native.second, LocalColorOsDockAccent.current))
+    val accent = dockAccent(native.first, native.second, LocalColorOsButtonAccent.current)
     val fab = remember(native, host) {
         ColorOsNativeUi.prepare("create the native FAB return endpoint") {
             createNativeFab(native.first, native.second, host, accent, style?.weatherMaterial == true, style?.foreground, null)
@@ -177,7 +173,7 @@ internal fun ColorOsParallelHomeDock(
     val canOpen = rememberUpdatedState(selectedIndex < 2 && !buttonHidden)
     val returnLayer = rememberGraphicsLayer()
     val accent = dockAccent(source, context, LocalColorOsDockAccent.current)
-    val fabColor = colorOsAccentForWhiteIcon(accent)
+    val fabColor = dockAccent(source, context, LocalColorOsButtonAccent.current)
     val returnRecorded = remember(native, effectiveDark, fabColor, style, density.density) { AtomicBoolean(false) }
     val group = remember(native, host, composeRoot) {
         ColorOsNativeUi.prepare("create the native 3+1 dock") {

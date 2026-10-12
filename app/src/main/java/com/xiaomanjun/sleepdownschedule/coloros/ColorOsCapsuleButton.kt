@@ -1,8 +1,6 @@
 package com.xiaomanjun.sleepdownschedule.coloros
 
 import android.content.Context
-import android.graphics.BlendMode
-import android.graphics.Color as AndroidColor
 import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
@@ -145,28 +143,13 @@ internal fun ColorOsNativeUi.Source.configureCapsuleButton(view: TextView, prima
     type.getMethod("setAnimEnable", Boolean::class.javaPrimitiveType).invoke(view, true)
 }
 
-/** Keep COUI's primary preset (including disabled alpha); change only the application accent. */
+/** Colored controls use the FAB's color layers; disabled controls retain the native preset. */
 internal fun ColorOsNativeUi.Source.applyCapsuleAccent(view: TextView, accent: Int) {
     val type = load("com.coui.appcompat.button.COUIButton")
     type.getMethod("setDrawableColor", Int::class.javaPrimitiveType).invoke(view, accent or (0xFF shl 24))
     if (!view.isAttachedToWindow || !blurEnabled()) { view.invalidate(); return }
-    val theme = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect")
-    val companion = theme.getField("Companion").get(null)
-    val presetType = load("${theme.name}\$ThemeBlurEffectType")
-    val preset = companion.javaClass.getMethod("getBlurEffectParamsByType", Context::class.java, presetType)
-        .invoke(companion, view.context, presetType.getField(if (view.isEnabled)
-            "TYPE_CONTENT_PRIMARY_BUTTON" else "TYPE_CONTENT_DISABLED_PRIMARY_BUTTON").get(null))
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
-    val original = base.getMethod("getColorLayer1", Context::class.java).invoke(preset, view.context) as Int
-    val colored = (accent and 0x00FFFFFF) or (AndroidColor.alpha(original) shl 24)
-    fun hex(color: Int) = "#" + Integer.toHexString(color).padStart(8, '0')
-    val params = load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectParams")
-        .getConstructor(Float::class.javaPrimitiveType, String::class.java, BlendMode::class.java,
-            String::class.java, BlendMode::class.java)
-        .newInstance(base.getMethod("getBlurRadius", Context::class.java).invoke(preset, view.context), hex(colored),
-            base.getMethod("getBlendModeLayer1").invoke(preset),
-            hex(base.getMethod("getColorLayer2", Context::class.java).invoke(preset, view.context) as Int),
-            base.getMethod("getBlendModeLayer2").invoke(preset))
+    val params = accentButtonBlurParams(view.context, accent, view.isEnabled)
     load("com.coui.appcompat.COUIMaterialEffect").getMethod("setViewBlurEffect", View::class.java, base)
         .invoke(null, view, params)
     view.invalidate()

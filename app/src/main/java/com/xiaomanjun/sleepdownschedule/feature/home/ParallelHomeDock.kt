@@ -52,8 +52,8 @@ internal fun homeImportButtonGlassColor(light: Boolean): Color =
 @Composable
 internal fun homeDockImportButtonGlassColor(light: Boolean): Color {
     val nativeStyle = com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle.current != null
-    val accent = com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent.current
-        ?.let { Color(if (nativeStyle) com.xiaomanjun.sleepdownschedule.coloros.colorOsAccentForWhiteIcon(it) else it) }
+    val accent = com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsButtonAccent.current
+        ?.let { Color(it) }
         ?: HomeImportButtonColor
     // Native FAB's custom theme layer is opaque. Match it before blending toward the menu tint.
     return accent.copy(alpha = if (nativeStyle)

@@ -1416,14 +1416,15 @@ fun CourseScheduleAppUi(
         else ComposeColor(colors.map { it.red }.average().toFloat(), colors.map { it.green }.average().toFloat(),
             colors.map { it.blue }.average().toFloat()).toArgb()
     }
-    val colorOsDockAccent = com.xiaomanjun.sleepdownschedule.coloros
-        .rememberColorOsDockAccent(wallpaperImages, colorOsAccentBackground)
+    val colorOsHomeAccents = com.xiaomanjun.sleepdownschedule.coloros
+        .rememberColorOsHomeAccents(wallpaperImages, colorOsAccentBackground)
     val adaptiveGlassState = rememberFallbackAdaptiveGlassState(visualState.config)
     val homeChromeHasWallpaper = visualState.config.hasAnyWallpaper()
     val homeChromeForeground = adaptiveGlassState.contentColor.toArgb().takeIf { homeChromeHasWallpaper }
-    val homeNeutralChromeStyle = remember(appDarkTheme, homeChromeHasWallpaper, homeChromeForeground) {
+    val homeChromeDark = if (homeChromeHasWallpaper) !adaptiveGlassState.lightGlass else appDarkTheme
+    val homeNeutralChromeStyle = remember(homeChromeDark, homeChromeHasWallpaper, homeChromeForeground) {
         com.xiaomanjun.sleepdownschedule.coloros.ColorOsHomeChromeStyle(
-            appDarkTheme, homeChromeHasWallpaper, homeChromeForeground)
+            homeChromeDark, homeChromeHasWallpaper && !homeChromeDark, homeChromeForeground)
     }
     val statusBarWallpaperLuminance = remember(homeReadabilityContext) {
         homeStatusBarWallpaperLuminance(homeReadabilityContext)
@@ -2455,7 +2456,8 @@ fun CourseScheduleAppUi(
         LocalStartupPhase provides startupPhase,
         LocalGlassQuality provides glassQuality,
         LocalAdaptiveGlass provides adaptiveGlassState,
-        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent provides colorOsDockAccent,
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent provides colorOsHomeAccents?.dock,
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsButtonAccent provides colorOsHomeAccents?.button,
         com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle provides
             homeNeutralChromeStyle.takeIf { screen is Screen.Home },
         com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsOverflowMenu provides

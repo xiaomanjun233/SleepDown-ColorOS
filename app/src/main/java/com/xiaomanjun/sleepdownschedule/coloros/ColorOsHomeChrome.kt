@@ -57,14 +57,25 @@ internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, ra
             base.getMethod("getBlendModeLayer2").invoke(preset))
 }
 
-internal fun ColorOsNativeUi.Source.homeFabBlurParams(context: Context, fabPreset: Any): Any {
+/** Same color-layer recipe as COUIFloatingButton.getNonThemeFabColor, shared by colored buttons. */
+internal fun ColorOsNativeUi.Source.accentButtonBlurParams(
+    context: Context, accent: Int, enabled: Boolean = true, radiusScale: Float = 0.85f
+): Any {
+    val theme = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect")
+    val companion = theme.getField("Companion").get(null)
+    val type = load("${theme.name}\$ThemeBlurEffectType")
+    val fabPreset = companion.javaClass.getMethod("getBlurEffectParamsByType", Context::class.java, type)
+        .invoke(companion, context, type.getField(if (enabled) "TYPE_FRAMEWORK_FAB"
+            else "TYPE_CONTENT_DISABLED_PRIMARY_BUTTON").get(null))
+    // Disabled controls retain COUI's disabled treatment instead of an opaque active accent.
+    if (!enabled) return fabPreset
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
     val radius = base.getMethod("getBlurRadius", Context::class.java).invoke(fabPreset, context) as Float
     val themeParams = load("com.coui.appcompat.effect.COUIMaterialThemeBlurEffect\$Companion\$ThemeBlurEffectParams")
     return themeParams.getConstructor(Float::class.javaPrimitiveType, Int::class.javaPrimitiveType,
         Boolean::class.javaPrimitiveType, BlendMode::class.java, Int::class.javaPrimitiveType,
         Boolean::class.javaPrimitiveType, BlendMode::class.java, Int::class.javaPrimitiveType)
-        .newInstance(radius * 0.85f, base.getMethod("getColorLayer1", Context::class.java).invoke(fabPreset, context),
+        .newInstance(radius * radiusScale, accent or (0xFF shl 24),
             false, base.getMethod("getBlendModeLayer1").invoke(fabPreset),
             base.getMethod("getColorLayer2", Context::class.java).invoke(fabPreset, context), false,
             base.getMethod("getBlendModeLayer2").invoke(fabPreset), 255)
