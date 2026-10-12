@@ -66,8 +66,8 @@ private class NativeFab(val root: ViewGroup, val main: View, val icon: ImageView
         this.neutral = neutral
         if (restorePreset) root.javaClass.getMethod("onConfigurationChanged", android.content.res.Configuration::class.java)
             .invoke(root, root.context.resources.configuration)
-        icon.drawable?.setTintList(foreground?.let(ColorStateList::valueOf)
-            ?: source.color(root.context, "couiColorOnPrimary"))
+        icon.imageTintList = ColorStateList.valueOf(android.graphics.Color.WHITE)
+        icon.drawable?.setTint(android.graphics.Color.WHITE)
         root.javaClass.getMethod("setMainFloatingButtonBackgroundColor", ColorStateList::class.java)
             .invoke(root, ColorStateList.valueOf(color))
         applyMaterial()
@@ -98,7 +98,7 @@ private fun createNativeFab(
     val main = type.getMethod("getMainView").invoke(root) as View
     val icon = type.getMethod("getMainFloatingButton").invoke(root) as ImageView
     val plus = requireNotNull(ContextCompat.getDrawable(host, R.drawable.ic_add_course)).mutate()
-    plus.setTintList(source.color(context, "couiColorOnPrimary"))
+    plus.setTint(android.graphics.Color.WHITE)
     type.getMethod("setMainFabDrawable", android.graphics.drawable.Drawable::class.java).invoke(root, plus)
     // SleepDown's existing menu opens after the native click; the FAB's own action list stays closed.
     type.getMethod("setIsFloatingButtonExpandEnable", Boolean::class.javaPrimitiveType).invoke(root, false)

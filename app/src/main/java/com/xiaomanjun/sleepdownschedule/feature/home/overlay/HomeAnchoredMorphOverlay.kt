@@ -1466,7 +1466,9 @@ internal fun HomeAnchoredMorphOverlayHost(
             val envelope = Rect(min(source.left, targetRect.left) - margin, min(source.top, targetRect.top) - margin,
                 max(source.right, targetRect.right) + margin, max(source.bottom, targetRect.bottom) + margin)
             val origin = Offset(-envelope.left, -envelope.top)
-            val tint = (if (glassUsesLightStyle(config)) HomeLightGlassSurfaceColor else Color(0xFF050505))
+            val tint = LocalColorOsHomeChromeStyle.current?.let {
+                com.xiaomanjun.sleepdownschedule.coloros.colorOsHomeNeutralTint(it.dark)
+            } ?: (if (glassUsesLightStyle(config)) HomeLightGlassSurfaceColor else Color(0xFF050505))
                 .copy(alpha = if (glassUsesLightStyle(config)) 0.28f else 0.40f)
             Box(Modifier.offset { IntOffset(envelope.left.roundToInt(), envelope.top.roundToInt()) }
                 .requiredSize(with(density) { envelope.width.toDp() }, with(density) { envelope.height.toDp() })
@@ -2799,7 +2801,9 @@ internal fun HomeAddMenuMorphPanel(
                     pressExpansion = if (compactActions) 1.5.dp else 3.dp,
                     highlightRadiusMultiplier = 0.65f,
                     shape = shape,
-                    surfaceColor = (
+                    surfaceColor = homeStyle?.let {
+                        com.xiaomanjun.sleepdownschedule.coloros.colorOsHomeNeutralTint(it.dark)
+                    } ?: (
                         if (lightGlass) HomeLightGlassSurfaceColor else Color(0xFF050505)
                         ).copy(alpha = if (lightGlass) 0.28f else 0.40f)
                 ) {

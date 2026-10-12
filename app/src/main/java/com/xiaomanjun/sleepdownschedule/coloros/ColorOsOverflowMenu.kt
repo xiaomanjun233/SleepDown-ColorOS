@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.widget.ImageView
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.core.content.ContextCompat
@@ -62,7 +63,17 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
 
     private fun applyForeground(view: View) {
         val color = foreground ?: return
-        if (view is TextView) view.setTextColor(color)
+        if (view is TextView) {
+            view.setTextColor(color)
+            view.compoundDrawablesRelative.forEach { it?.mutate()?.setTint(color) }
+        }
+        // COUI's adapter applies an ImageView tint after binding the supplied drawable.
+        // Override that tint as well, after the native menu has attached and laid out.
+        if (view is ImageView) {
+            view.clearColorFilter()
+            view.imageTintList = ColorStateList.valueOf(color)
+            view.drawable?.mutate()?.setTint(color)
+        }
         if (view is ViewGroup) for (index in 0 until view.childCount) applyForeground(view.getChildAt(index))
     }
 

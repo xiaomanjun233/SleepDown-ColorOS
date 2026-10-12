@@ -33,6 +33,11 @@ internal data class ColorOsHomeChromeStyle(
 
 internal val LocalColorOsHomeChromeStyle = compositionLocalOf<ColorOsHomeChromeStyle?> { null }
 
+/** The morph target and expanded menu share one neutral tint. The FAB keeps its accent. */
+internal fun colorOsHomeNeutralTint(dark: Boolean) =
+    androidx.compose.ui.graphics.Color(if (dark) 0xFF050505 else 0xFFFFFFFF)
+        .copy(alpha = if (dark) 0.40f else 0.28f)
+
 internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, radiusScale: Float = 1f): Any {
     val effect = load("com.coui.appcompat.COUIMaterialEffect")
     val type = load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType")

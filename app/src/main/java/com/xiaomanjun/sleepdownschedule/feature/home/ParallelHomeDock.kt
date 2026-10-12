@@ -50,9 +50,13 @@ internal fun homeImportButtonGlassColor(light: Boolean): Color =
     HomeImportButtonColor.copy(alpha = homeChromeGlassSurfaceAlpha(light))
 
 @Composable
-internal fun homeDockImportButtonGlassColor(light: Boolean): Color =
-    (com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent.current
-        ?.let { Color(it) } ?: HomeImportButtonColor).copy(alpha = homeChromeGlassSurfaceAlpha(light))
+internal fun homeDockImportButtonGlassColor(light: Boolean): Color {
+    val accent = com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent.current
+        ?.let { Color(it) } ?: HomeImportButtonColor
+    // Native FAB's custom theme layer is opaque. Match it before blending toward the menu tint.
+    return accent.copy(alpha = if (com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle.current != null)
+        1f else homeChromeGlassSurfaceAlpha(light))
+}
 
 /** The return endpoint is the resting button, without the captured press deformation. */
 @Composable
