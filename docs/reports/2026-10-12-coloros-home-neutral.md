@@ -27,4 +27,6 @@ Release Compose 报告确认 `NativeHomeDockChrome` 为 `restartable skippable`�
 
 后续修订再次完整 `assembleGithubRelease` 通过，耗时 6 分 13 秒；v2 签名有效，单签名者。候选 `app/build/outputs/apk/github/release/SleepDown-ColorOS-1.2.7_beta5-system-material-repair.apk`，7,393,690 字节，SHA-256 `776e618dcf1d8260b6b830dd0ae53e2b751a9eea7bc6ca77af53b4c29fef1728`。此前 6 项路由测试之后未再改路由，不重复执行。安装前 ADB devices 与 mDNS 均为空，覆盖安装返回 device not found；该修订当时尚未装到手机，等待重新连接。
 
+用户随后重连 USB，SDK ADB 5038 确认 PLJ110 在线（transport 3）。同一修订包以 `install -r` 覆盖安装成功，输出 `Success`，保留应用数据，没有自动启动。课程轮廓、菜单材质和 Dock 的画面及触摸表现仍待用户实机验收。
+
 重点实机验收：菜单与按钮材质颜色；shortcut/弹窗展开时 Dock 的页面模糊归属；一次 shortcut 展开/收回期间原生 Dock commit 数量；加号融合；课程凝光渐变；课程管理进入与返回。编译器可跳过组合不代表已经测得帧时间提升。
