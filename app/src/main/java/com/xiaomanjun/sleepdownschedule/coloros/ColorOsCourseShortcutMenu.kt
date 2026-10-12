@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -31,14 +34,21 @@ internal fun ColorOsCourseShortcutMenu(
     val latestDismiss = rememberUpdatedState(onDismiss)
     val latestActions = rememberUpdatedState(actions)
     val latestClosing = rememberUpdatedState(closing)
-    val menu = remember(native, session, style) {
+    val menuContext = remember(native, host, style?.dark, dark) {
+        native.first.themedContext(host, style?.dark ?: dark)
+    }
+    val menu = remember(native, session, style, menuContext) {
         ColorOsNativeUi.prepare("create native course shortcut") {
-            NativeOverflowMenu(native.first, native.first.themedContext(host, style?.dark ?: dark), host,
+            NativeOverflowMenu(native.first, menuContext, host,
                 neutral = style?.weatherMaterial == true, foreground = style?.foreground,
                 onDismiss = { latestDismiss.value() })
         }
     } ?: return false
-    val anchor = remember(menu) { View(host).apply {
+    var failed by remember(menu) { mutableStateOf(false) }
+    if (failed) return false
+    // PopupMenuLocateHelper constructs ResponsiveUIModel from anchor.context. That context
+    // must resolve the same vendor grid resources as the menu, not SleepDown's resource IDs.
+    val anchor = remember(menu) { View(menuContext).apply {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         isClickable = false
         isFocusable = false
@@ -53,14 +63,21 @@ internal fun ColorOsCourseShortcutMenu(
                 shown[0] = true
                 anchor.post {
                     if (active[0] && !latestClosing.value && anchor.isAttachedToWindow) {
-                        menu.show(anchor, latestActions.value)
+                        if (ColorOsNativeUi.prepare("show native course shortcut") {
+                                menu.show(anchor, latestActions.value)
+                                true
+                            } != true) failed = true
                     }
                 }
             }
         })
     DisposableEffect(menu) {
         bindDismiss(menu::dismiss)
-        onDispose { active[0] = false; bindDismiss(null); menu.dispose() }
+        onDispose {
+            active[0] = false
+            bindDismiss(null)
+            ColorOsNativeUi.prepare("dispose native course shortcut") { menu.dispose() }
+        }
     }
     return true
 }
