@@ -6,7 +6,7 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeAlertRen
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCapsuleButtonRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeTopGradientBlurRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeProgressiveBlur
 
 /** SleepDown's ColorOS framework entry. Each capability returns false when unavailable. */
 @Composable
@@ -16,7 +16,7 @@ internal fun ProvideSleepDownColorOs(content: @Composable () -> Unit) {
         LocalNativeCapsuleButtonRenderer provides { request, body -> ColorOsCapsuleButton(request, body) },
         LocalNativeCourseCardMode provides rememberColorOsCourseCardMode(),
         LocalNativeCourseCardRenderer provides { request, body -> ColorOsCourseCard(request, body) },
-        LocalNativeTopGradientBlurRenderer provides { modifier, dark -> ColorOsTopGradientBlur(modifier, dark) },
+        LocalNativeProgressiveBlur provides rememberColorOsProgressiveBlur(),
         content = content
     )
 }
