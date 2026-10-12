@@ -2826,6 +2826,7 @@ fun CourseScheduleAppUi(
                             .zIndex(11f)
                             .homeCountdownShockwave(0.75f)
                     ) {
+                        CompositionLocalProvider(LocalToolbarBackdropBlurred provides homeContentUnderTopBar) {
                         AppTopBar(
                             screen = Screen.Home,
                             state = visualState,
@@ -2853,6 +2854,7 @@ fun CourseScheduleAppUi(
                             },
                             onBackHome = { screen = Screen.Home }
                         )
+                        }
                     }
                     if (weekViewStyle == WeekViewStyle.BOUNDLESS) {
                         // Boundless week header lives on the top bar layer (above the gradient
@@ -7136,15 +7138,15 @@ fun PersonalizePanel(
                         PersonalizeValueSlider(
                             sliderKey = PersonalizeNativeCardBlurSlider,
                             modifier = Modifier.rowEntrance(11 + weekContentRows),
-                            value = material.blurRadiusScale, valueRange = 0f..2f, backdrop = backdrop,
-                            label = { "凝光模糊 ${(it * 100).toInt()}%" },
-                            onCommit = { material.onBlurRadiusScaleChange(it, true) },
-                            onPreviewValueChange = { material.onBlurRadiusScaleChange(it, false) },
+                            value = material.blurRadiusScale * 50f, valueRange = 0f..100f, backdrop = backdrop,
+                            label = { "凝光模糊 ${it.toInt()}" },
+                            onCommit = { material.onBlurRadiusScaleChange(it / 50f, true) },
+                            onPreviewValueChange = { material.onBlurRadiusScaleChange(it / 50f, false) },
                             previewSliderKey = previewSliderKey, previewProgress = previewProgress,
                             onSliderPreviewActiveChange = { key, active ->
                                 onSliderPreviewActiveChange(key, active)
                                 if (!active) material.onPreviewFinished()
-                            }, snapValue = 1f,
+                            }, snapValue = 50f,
                             onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardBlurSlider, it) }
                         )
                     }

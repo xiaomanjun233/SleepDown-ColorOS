@@ -9,3 +9,6 @@ internal fun interface NativeProgressiveBlur {
 }
 
 internal val LocalNativeProgressiveBlur = compositionLocalOf<NativeProgressiveBlur?> { null }
+
+/** A toolbar's backdrop already contains its page-level progressive blur. */
+internal val LocalToolbarBackdropBlurred = compositionLocalOf { false }

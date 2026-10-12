@@ -252,6 +252,7 @@ internal fun ColorOsHomeIconButton(
     val style = if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogSurface.current) null
         else LocalColorOsHomeChromeStyle.current
     val effectiveDark = style?.dark ?: dark
+    val backdropBlurred = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalToolbarBackdropBlurred.current
     val native = rememberNativeContext(effectiveDark) ?: return false
     val host = LocalContext.current
     val source = native.first
@@ -312,7 +313,7 @@ internal fun ColorOsHomeIconButton(
                 .getField("TYPE_DEFAULT_BLUR").getInt(null)
             type.getMethod("setMaterialEffectType", Int::class.javaPrimitiveType).invoke(effect, materialType)
             NativeIconButton(view, sizedIcon, requireNotNull(effect), type.getMethod("detach"), source).also { button ->
-                button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground)
+                button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground, backdropBlurred)
                 source.bindFollowLightIntensity(view, effect)
                 view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                     override fun onViewAttachedToWindow(view: View) { view.post { button.refreshAppearance() } }
@@ -334,7 +335,7 @@ internal fun ColorOsHomeIconButton(
     }
     key(context, iconRes) {
         AndroidView(factory = { button.view }, modifier = modifier, update = { view ->
-            button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground)
+            button.updateHomeStyle(style?.weatherMaterial == true, style?.foreground, backdropBlurred)
             if (source.updateTheme(context, effectiveDark)) button.refreshAppearance()
             view.contentDescription = contentDescription
             view.isSelected = selected
@@ -356,15 +357,17 @@ private class NativeIconButton(val view: View, val icon: Drawable, val effect: A
     private val source: ColorOsNativeUi.Source) {
     private var neutral = false
     private var foreground: Int? = null
-    fun updateHomeStyle(wanted: Boolean, foreground: Int?) {
-        if (neutral == wanted && this.foreground == foreground) return
+    private var backdropBlurred = false
+    fun updateHomeStyle(wanted: Boolean, foreground: Int?, backdropBlurred: Boolean) {
+        if (neutral == wanted && this.foreground == foreground && this.backdropBlurred == backdropBlurred) return
         neutral = wanted
         this.foreground = foreground
+        this.backdropBlurred = backdropBlurred
         refreshAppearance()
     }
     fun refreshAppearance() {
         effect.javaClass.getMethod("refreshRipple", Context::class.java).invoke(effect, view.context)
-        val params = if (neutral) source.weatherButtonBlurParams(view.context) else null
+        val params = source.toolbarButtonBlurParams(view.context, neutral, backdropBlurred)
         effect.javaClass.getMethod("setCustomBlurParams", source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
             .invoke(effect, params)
         icon.setTintList(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_selected), intArrayOf()),

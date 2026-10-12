@@ -39,12 +39,25 @@ internal fun colorOsHomeNeutralTint(dark: Boolean) =
     androidx.compose.ui.graphics.Color(if (dark) 0xFF050505 else 0xFFFFFFFF)
         .copy(alpha = if (dark) 0.40f else 0.28f)
 
-internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, radiusScale: Float = 1f): Any {
+internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, radiusScale: Float = 1f): Any =
+    scaledBlurParams(context, "TYPE_CONTENT_TRANSPARENT_BUTTON", radiusScale)
+
+/** Keep COUI's color layers and material delegate; only lighten its second blur pass. */
+internal fun ColorOsNativeUi.Source.toolbarButtonBlurParams(
+    context: Context, neutral: Boolean, backdropBlurred: Boolean
+): Any? = when {
+    backdropBlurred -> scaledBlurParams(context,
+        if (neutral) "TYPE_CONTENT_TRANSPARENT_BUTTON" else "TYPE_FRAMEWORK_TOP_BAR_BLUR", 0.35f)
+    neutral -> weatherButtonBlurParams(context)
+    else -> null
+}
+
+private fun ColorOsNativeUi.Source.scaledBlurParams(context: Context, typeName: String, radiusScale: Float): Any {
     val effect = load("com.coui.appcompat.COUIMaterialEffect")
     val type = load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType")
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
     val preset = effect.getMethod("getBlurParamsByType", Context::class.java, type)
-        .invoke(null, context, type.getField("TYPE_CONTENT_TRANSPARENT_BUTTON").get(null))
+        .invoke(null, context, type.getField(typeName).get(null))
     if (radiusScale == 1f) return preset
     fun color(name: String): String = "#" + Integer.toHexString(
         base.getMethod(name, Context::class.java).invoke(preset, context) as Int).padStart(8, '0')
