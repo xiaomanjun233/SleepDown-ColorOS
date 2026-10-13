@@ -67,9 +67,13 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预览，值变化只预览，正常结束先提交再结束预览；取消恢复开始值而不提交；键盘/无障碍变化无需制造触摸预览。禁用状态传入原生 View。课程模糊使用上文百分比映射。
 
+独立使用的 `COUISwitch` 显式启用 clickable / focusable；Settings 的 preference 样式默认依赖外部行处理点击。开关选中轨道和滑条进度使用所在页面的按钮主题色。原生 Slider 不套旧 `SliderWithSnapMarker`：默认值标记读取 COUI 的 `getProgressStart`、`getSeekBarLength` 和 `getSeekBarCenterY`，与系统轨道内边距、RTL 保持一致，不修改原生弹性形变。
+
 ## 菜单与教务面板
 
 加号菜单的本体使用与右上角菜单相同的 `RoundFrameLayout` 和 `DefaultAdapter` 原生菜单项。`NativeMenuRenderer` 只定义菜单数据、行和表面的接口，原宿主仍维护位置、尺寸、源按钮交接和开合动画。图标、文字及原生选中标记属于同一行；菜单面板继续按首页规则取中性或深色材质，FAB 本体仍由自己的着色控制。
+
+Settings 的 `RoundFrameLayout.updateBlurCornerRadius` 是私有方法，绑定时通过 declared method 解析并缓存。圆角动画不能在绘制阶段重新按 public method 查找，否则打开加号菜单会直接崩溃。
 
 公共 Miuix 普通菜单与级联主次菜单通过 `miuix-popup-material-content.patch` 和 `miuix-native-menu-body.patch` 挂载同款 COUI 外框、菜单行及返回标题。原菜单继续负责进退场、父级冻结、点击和滑动选择，不额外启动 `COUIPopupListWindow` 的窗口动画。原生行提供 View 测量桥接，支持弹层的 intrinsic 宽度查询；按压状态交给原生行，公共宿主将触摸转发给背景跟手光，坐标按原生 View 的屏幕位置换算。右上角独立原生弹窗与嵌入菜单共用条目着色规则，保留项目图标和删除红色。
 
@@ -90,6 +94,8 @@ Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预
 `NativeMaterialSurfaceRenderer` 复用课程凝光的原生背景 View，但不受课程凝光开关控制。周表头、日期状态胶囊、AI 卡片、会话外壳、提醒和输入框通过 glass / 设计系统入口使用该能力；缺少能力时保留原绘制。
 
 原生 View 负责模糊、描边和跟手光，Compose 负责文字、图标、布局和编辑输入。背景不拦截输入、不创建按钮点击行为；动态形状在 draw/layer 中读取并更新原生 outline，保留既有 AI 形变及快照归属。表头的模糊半径为系统通透预设的 60%；日期状态胶囊叠加原配色的纵向渐变，上部着色 30%、底部 50%，不再使用按钮的统一实色层。
+
+AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的真实边界布局，并接收当前圆角。不能仅以 inset path 裁剪铺满容器的默认胶囊。全屏矩形使用半径 0、圆角类别 3，与 COUIButton 的显式圆角路径一致。
 
 成功使用原生材质的内容通过 `LocalNativeMaterialSurfaceActive` 获知这一状态。今日助手不再叠加旧的按压黑色遮罩，沿用原生跟手光；原生能力不可用时保留旧按压反馈。这个局部标志表示实际渲染结果，不靠厂商名猜测是否成功。
 

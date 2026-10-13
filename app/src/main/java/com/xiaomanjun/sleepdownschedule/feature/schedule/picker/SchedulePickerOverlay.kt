@@ -72,6 +72,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
@@ -261,6 +263,8 @@ private fun QuickScheduleSettingsSheetSession(
     var currentWeekText by remember { mutableStateOf(initialDraft.currentWeek.toString()) }
     var detailButtonBounds by remember { mutableStateOf<Rect?>(null) }
     var detailLaunching by remember { mutableStateOf(false) }
+    val sheetDiagnostics = remember { android.util.Log.isLoggable("SleepDownSheet", android.util.Log.DEBUG) }
+    val sheetDraws = remember { intArrayOf(0) }
 
     fun latestDraft(): QuickScheduleDraft? = retainedDraft
 
@@ -321,7 +325,17 @@ private fun QuickScheduleSettingsSheetSession(
         onDismissFinished = onDismissFinished,
         allowDismiss = !saving,
         backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 590.dp).semantics { testTag = "quick_schedule_sheet" },
+        modifier = Modifier.heightIn(max = 590.dp).semantics { testTag = "quick_schedule_sheet" }
+            .then(if (sheetDiagnostics) Modifier.onGloballyPositioned { coords ->
+                android.util.Log.i("SleepDownSheet", "layout size=${coords.size} root=${coords.boundsInRoot()} window=${coords.positionInWindow()}")
+            }.drawWithContent {
+                if (sheetDraws[0]++ < 3) {
+                    @Suppress("DEPRECATION")
+                    val matrix = drawContext.canvas.nativeCanvas.matrix
+                    android.util.Log.i("SleepDownSheet", "draw size=$size matrix=$matrix")
+                }
+                drawContent()
+            } else Modifier),
         surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
     ) {
         retainedDraft.let { value ->
