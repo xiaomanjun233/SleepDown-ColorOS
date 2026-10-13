@@ -37,6 +37,10 @@ import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -140,38 +144,8 @@ fun SleepDownPickerDialog(
     bottomActions: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val visuals = rememberCenteredDialogVisuals(
-        backdrop = backdrop,
-        config = config,
-        blurRadius = blurRadius,
-        enableForegroundHighlight = false
-    )
-    val resolvedRenderInRootScaffold = renderInRootScaffold
-        ?: LocalCenteredDialogRenderInRootScaffold.current
     val foreground = sleepDownPanelForegroundColor(config)
-    top.yukonga.miuix.kmp.overlay.OverlayDialog(
-        show = show,
-        title = null,
-        onDismissRequest = onDismissRequest,
-        onDismissFinished = onDismissFinished,
-        enableWindowDim = enableWindowDim,
-        backgroundColor = Color.Transparent,
-        forceCenter = true,
-        surfaceModifier = visuals.surfaceModifier,
-        backgroundModifier = visuals.backgroundModifier,
-        animationProgressState = visuals.animationProgress,
-        enablePredictiveBackAnimation = false,
-        excludeFromBackdropCapture = true,
-        renderInRootScaffold = resolvedRenderInRootScaffold,
-        outsideMargin = DpSize(
-            SleepDownDesignTokens.QuickSheet.HorizontalMargin,
-            SleepDownDesignTokens.QuickSheet.VerticalMargin
-        ),
-        insideMargin = DpSize(
-            SleepDownDesignTokens.CenteredDialog.ContentPadding,
-            SleepDownDesignTokens.CenteredDialog.AlertVerticalPadding
-        )
-    ) {
+    val body: @Composable () -> Unit = {
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.material3.LocalContentColor provides foreground
         ) {
@@ -239,6 +213,79 @@ fun SleepDownPickerDialog(
             }
         }
     }
+    if (NativePickerDialog(show, config, onDismissRequest, onDismissFinished, body)) return
+    val visuals = rememberCenteredDialogVisuals(
+        backdrop = backdrop,
+        config = config,
+        blurRadius = blurRadius,
+        enableForegroundHighlight = false
+    )
+    val resolvedRenderInRootScaffold = renderInRootScaffold
+        ?: LocalCenteredDialogRenderInRootScaffold.current
+    top.yukonga.miuix.kmp.overlay.OverlayDialog(
+        show = show,
+        title = null,
+        onDismissRequest = onDismissRequest,
+        onDismissFinished = onDismissFinished,
+        enableWindowDim = enableWindowDim,
+        backgroundColor = Color.Transparent,
+        forceCenter = true,
+        surfaceModifier = visuals.surfaceModifier,
+        backgroundModifier = visuals.backgroundModifier,
+        animationProgressState = visuals.animationProgress,
+        enablePredictiveBackAnimation = false,
+        excludeFromBackdropCapture = true,
+        renderInRootScaffold = resolvedRenderInRootScaffold,
+        outsideMargin = DpSize(
+            SleepDownDesignTokens.QuickSheet.HorizontalMargin,
+            SleepDownDesignTokens.QuickSheet.VerticalMargin
+        ),
+        insideMargin = DpSize(
+            SleepDownDesignTokens.CenteredDialog.ContentPadding,
+            SleepDownDesignTokens.CenteredDialog.AlertVerticalPadding
+        ),
+        content = body
+    )
+}
+
+/** Keep the native window alive for its own exit; business content still owns validation. */
+@Composable
+private fun NativePickerDialog(
+    show: Boolean,
+    config: ScheduleConfigEntity,
+    onDismissRequest: () -> Unit,
+    onDismissFinished: (() -> Unit)?,
+    content: @Composable () -> Unit
+): Boolean {
+    val renderer = LocalNativeAlertRenderer.current ?: return false
+    var mounted by remember { mutableStateOf(show) }
+    var session by remember { mutableIntStateOf(0) }
+    if (show) mounted = true
+    if (!mounted) return true
+    val maxHeight = with(LocalDensity.current) {
+        androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height.toDp() * 0.82f
+    }
+    return key(session) { renderer(NativeAlertRequest(
+        title = "",
+        message = "",
+        actions = emptyList(),
+        dark = appUsesDarkTheme(config),
+        onDismissRequest = onDismissRequest,
+        messageMaxHeight = maxHeight,
+        scrollableMessageContent = false,
+        messageContent = content,
+        visible = show,
+        deferDismissUntilHost = true,
+        onDismissFinished = {
+            mounted = false
+            session++
+            onDismissFinished?.invoke()
+        },
+        contentPadding = PaddingValues(
+            horizontal = SleepDownDesignTokens.CenteredDialog.ContentPadding,
+            vertical = SleepDownDesignTokens.CenteredDialog.AlertVerticalPadding
+        )
+    )) }
 }
 
 internal class CenteredDialogVisuals(
@@ -551,6 +598,21 @@ internal fun QuickSheetLiquidAction(
 ) {
     val actionModifier = if (modifier == Modifier) Modifier.width(84.dp) else modifier
     val centeredAction = height == SleepDownDesignTokens.CenteredDialog.ActionHeight
+    if (LocalNativeCapsuleButtonRenderer.current?.invoke(NativeCapsuleButtonRequest(
+            onClick = onClick,
+            modifier = actionModifier,
+            height = height,
+            contentPadding = PaddingValues(horizontal = 14.dp),
+            dark = appUsesDarkTheme(config),
+            enabled = enabled,
+            primaryColor = if (primary) MaterialTheme.colorScheme.primary else Color.Unspecified
+        )) {
+            Text(label, color = when {
+                primary -> Color.White
+                destructive -> Color(0xFFFF453A)
+                else -> MaterialTheme.colorScheme.onSurface
+            }, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        } == true) return
     if (backdrop != null) {
         val dark = appUsesDarkTheme(config)
         val neutralSurface = if (centeredAction && dark) {

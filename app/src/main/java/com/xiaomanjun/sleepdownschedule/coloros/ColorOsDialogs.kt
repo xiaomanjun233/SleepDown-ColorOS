@@ -116,7 +116,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
                     val current = latest.value
                     CompositionLocalProvider(LocalNativeDialogSurface provides true) {
                         Box(Modifier.fillMaxWidth().heightIn(max = current.messageMaxHeight)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(current.contentPadding)
                             .then(if (current.scrollableMessageContent) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                             current.messageContent?.invoke()
                         }
@@ -170,6 +170,7 @@ private class NativeAlert(
                 val completion = pending ?: request().onDismissRequest
                 pending = null
                 completion()
+                request().onDismissFinished?.invoke()
             }
         }
         if (request().deferDismissUntilHost) {
