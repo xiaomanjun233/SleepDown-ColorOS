@@ -20,7 +20,9 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 原生 View 实例因主次按钮样式改变而重建时，`AndroidView` 以该实例为 key 同步重建宿主。仅替换 remember 的对象不会重新调用 factory，会留下已经解绑点击和运动监听的旧 View。菜单行、材质表面与数值控件遵循相同的实例归属。
 
-普通按钮使用系统 secondary 材质。彩色操作沿用操作颜色，通过 `accentButtonBlurParams` 与加号共用颜色层写法：基于 `TYPE_FRAMEWORK_FAB`，第一层直接使用操作颜色，保留系统第二层和混合模式，颜色不再经 primary 预设的透明度衰减；总透明度 255，模糊半径为 FAB 预设的 0.85 倍。禁用按钮继续使用系统 disabled-primary 预设；确认按钮保持主题色与白字，删除等动作保留语义色。跟手光沿用系统默认光色和当前 2× 强度。
+普通按钮保留系统 secondary 交互，模糊与透明颜色层改用返回按钮的 `TYPE_FRAMEWORK_TOP_BAR_BLUR`。彩色操作通过 `accentButtonBlurParams` 与加号共用颜色层写法：基于 `TYPE_FRAMEWORK_FAB`，第一层直接使用操作颜色，保留系统第二层和混合模式；总透明度 255，模糊半径为 FAB 预设的 0.85 倍。禁用按钮继续使用系统 disabled-primary 预设；确认按钮保持壁纸主题色与白字，删除等动作保留语义色。跟手光沿用系统默认光色和当前 2× 强度。
+
+Alert 的原生窗口仅按操作槽位等结构创建，外观和标签变化不重建窗口。明暗变化更新原主题 Context 并刷新原生模糊；按钮着色按外观变化更新，避免每次内容重组都重装材质。
 
 `clickTargetEnabled = false` 的弹层外壳、输入区域和共享手势表面不是普通按钮，不会被该入口变成可点击胶囊。它们继续使用各自的几何、采样与手势宿主。
 
@@ -71,19 +73,27 @@ Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预
 
 拖动接近默认值（全范围的 1.5% 内）时，同时同步 COUI 的原生 progress 和预览值，原生回传的程序更新不再次提交。离开吸附区继续跟手；键盘/无障碍的小步调整不吸附，避免无法从默认值移开。自定义时间与按节次的模式切换使用同一 `LiquidOptionTabs` / COUI 分段滑块，保留两侧未确认的选择状态。
 
-独立使用的 `COUISwitch` 显式启用 clickable / focusable；Settings 的 preference 样式默认依赖外部行处理点击。开关选中轨道和滑条进度使用所在页面的按钮主题色。原生 Slider 不套旧 `SliderWithSnapMarker`：默认值标记读取 COUI 的 `getProgressStart`、`getSeekBarLength` 和 `getSeekBarCenterY`，与系统轨道内边距、RTL 保持一致，不修改原生弹性形变。
+独立使用的 `COUISwitch` 显式启用 clickable / focusable；Settings 的 preference 样式默认依赖外部行处理点击。所有页面的开关选中轨道、滑条进度与强调按钮使用公共 `CourseScheduleTheme` 的壁纸主题色；小图解码与提色按壁纸缓存，无有效色相时回退蓝色。原生 Slider 不套旧 `SliderWithSnapMarker`：默认值标记读取 COUI 的 `getProgressStart`、`getSeekBarLength` 和 `getSeekBarCenterY`，与系统轨道内边距、RTL 保持一致，不修改原生弹性形变。
 
 ## 菜单与教务面板
 
 加号菜单的条目与右上角菜单共用 `DefaultAdapter`，嵌入页面的外壳使用 `ColorOsMaterialSurface` 的 View 级材质。`NativeMenuRenderer` 只定义菜单数据、行和表面的接口，原宿主仍维护位置、尺寸、源按钮交接和开合动画。图标、文字及原生选中标记属于同一行；菜单面板继续按首页规则取中性或深色材质，FAB 本体仍由自己的着色控制。
 
-`RoundFrameLayout` 的 `COUIBackgroundBlurBuilder` 通过 `ViewRootManager` 获取窗口背景模糊，仅留给真正独立的 `COUIPopupListWindow`。页面内部 popup / 加号菜单改用按钮同源的 `COUIMaterialEffect.setViewBlurEffect` 采样当前窗口前序内容，避免窗口后方的黑色背景。圆角由实际 Shape 提供；菜单跟手光使用 `TYPE_TRANSLUCENT_LARGE_1` 与 3× 强度。
+`RoundFrameLayout` 的 `COUIBackgroundBlurBuilder` 通过 `ViewRootManager` 获取窗口背景模糊，仅留给真正独立的 `COUIPopupListWindow`。页面内部加号菜单仍通过 `COUIMaterialEffect.setViewBlurEffect` 采样当前窗口前序内容。两种宿主共用 `menuBlurParams` 的颜色层和原生菜单 160 px 模糊半径；嵌入菜单使用 RoundFrameLayout 初始化的原生 edge drawable。圆角由实际 Shape 提供；菜单跟手光使用 `TYPE_TRANSLUCENT_LARGE_1` 与 1.7× 强度，嵌入菜单逐项反馈通过 StatefulDrawable 的 touch-select 进入/退出驱动。
 
-公共 Miuix 普通菜单与级联主次菜单通过 `miuix-popup-material-content.patch` 和 `miuix-native-menu-body.patch` 挂载同款 COUI 外框、菜单行及返回标题。原菜单继续负责进退场、父级冻结、点击和滑动选择，不额外启动 `COUIPopupListWindow` 的窗口动画。原生行提供 View 测量桥接，支持弹层的 intrinsic 宽度查询；按压状态交给原生行，公共宿主将触摸转发给背景跟手光，坐标按原生 View 的屏幕位置换算。右上角独立原生弹窗与嵌入菜单共用条目着色规则，保留项目图标和删除红色。
+普通下拉选择及级联 popup 通过 `LocalNativePopupRenderer` / `ColorOsPopup` 使用完整 `COUIPopupListWindow`，原生窗口负责开合及子菜单切换。锚点在当前根 View 的 overlay 中，使用同一原生资源 Context，坐标从 Compose root 转换；关闭完成后释放窗口及锚点，再运行叶子业务操作。主菜单与子菜单的回调索引分开映射。当前原生接口支持主菜单加一层子菜单，更深树和能力不可用时保留公共 Miuix 宿主。加号菜单仍保留原来的形变宿主。
 
-“添加单节课”横竖屏表单外壳接入公共原生材质，保留原来的表单、输入、源菜单交接与进入退出动画。课表快速设置及其日期面板已位于根部弹层同级，使用 `miuix-inline-bottom-sheet.patch` 原地渲染，不再额外创建 Scaffold 和 DialogLayout 注册；保存语义与 BottomSheetContentLayout 的滑入、拖动、退出状态机继续沿用。重复打开后的实机边界仍需验收，桌面测量不能替代 GPU 行为。
+回退到公共 Miuix 的多级菜单通过 `miuix-popup-material-content.patch` 和 `miuix-native-menu-body.patch` 挂载同款 COUI 外框、菜单行及返回标题，由 Miuix 负责进退场、父级冻结、点击和滑动选择。原生行提供 View 测量桥接，支持弹层的 intrinsic 宽度查询；按压状态交给原生行，公共宿主将触摸转发给背景跟手光，坐标按原生 View 的屏幕位置换算。右上角独立原生弹窗与嵌入菜单共用条目着色规则，保留项目图标和删除红色。
+
+COUI 材质、普通 popup 和原生菜单行不因旧的超级性能模式而退回简化绘制。原生开合、形变和逐项触摸动画完整保留；窗口 animationStyle 为 0 仅避免 WindowManager 再叠加一层动画，COUI 根节点自己的弹簧动画仍运行。
+
+ColorOS 能力可用时，首页 `HomeSwitchMotion` 不因课程数超过 10 而改成整页平移，日周和首页/设置切换保留分组追随、回弹；系统动画时长设置继续生效。切周使用原 `WeekPageTailMotion` 完整路径。
+
+“添加单节课”横竖屏表单外壳接入公共原生材质，保留表单与业务流程。课表快速设置及日期面板改成悬浮四圆角面板，半径按设备 RoundedCorner 和面板内缩量计算，保留安全区及内容滚动。`miuix-inline-bottom-sheet.patch` 保持原地宿主，`miuix-sheet-surface-sibling.patch` 将材质背景放到按钮内容之前的同级节点，避免背景的 Offscreen 层吞掉按钮原生采样。多课表顶栏与长按空白入口的淡入使用 ModulateAlpha，保留原时间与缩放。桌面测量不能替代实机 GPU 验收。
 
 教务灵动岛是可展开面板，使用 `TopAssistantSurface` 的原生材质和自身动态圆角；撤掉误套在外层的 `COUIButton` 胶囊，避免出现半高圆角白边。原有展开、收回与上划关闭逻辑保留。
+
+浮动课表设置及日期面板使用 `QuickSheetDialogMaterial` 的 Dialog 角色，读取 COUI 弹窗的模糊半径及明暗颜色资源，交给窗口内 View 的原生材质链采样；不借用独立窗口的后方采样器，不添加课程卡描边或整面板跟手光。`miuix-sheet-surface-sibling.patch` 的背景 Composable 插槽保证面板内按钮可独立采样。
 
 ## 课程 shortcut
 
@@ -103,11 +113,13 @@ AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的�
 
 成功使用原生材质的内容通过 `LocalNativeMaterialSurfaceActive` 获知这一状态。今日助手不再叠加旧的按压黑色遮罩，沿用原生跟手光；原生能力不可用时保留旧按压反馈。这个局部标志表示实际渲染结果，不靠厂商名猜测是否成功。
 
+日视图 AI 助理卡片及其展开会话使用 1.2 倍原生模糊半径、1.2 倍原生颜色层 alpha（上限 255）。沿用预设色值和混合模式，不额外叠加遮罩，也不影响课程卡、表头和其他 AI 控件。
+
 ## 课程凝光与渐变模糊
 
 课程凝光保留课程渐变色与默认 50% 着色。模糊滑杆显示 0%–100%：0% 对应系统默认半径的 20%，50% 对应系统默认值，100% 对应两倍半径；前后两段线性映射。内部仍保存半径比例，读取旧值时将低于 0.2 的值限制到新的最低强度，其余旧值保留实际效果并换算显示。偏好仅保存在派生版的独立 SharedPreferences，不改变 Room 和备份格式；拖动预览不写盘，提交后保存，预览取消时恢复已保存值。
 
-课程与表头描边对齐 COUIFloatingButton 的 `TYPE_FRAMEWORK_CIRCLE_2` 原生边缘/阴影预设，不额外放大宽度或透明度。这个预设定义描边 shader，不定义轮廓半径。按 COUIButton 的顺序，先根据实际 Shape、密度、尺寸设置 `OplusMaterialCornerParams`，再安装材质描边；只做 ViewOutline 裁剪无法让原生描边沿圆角走。Kyant 连续圆角从 `RoundedRectangularShape.corners` 读取，课程卡保留实际半径，胶囊才使用半高圆角；未知或不均匀路径不强行改成胶囊。跟手光保持系统默认色与 2× 强度。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画，不显示说明文字、旧轮廓光开关或折射滑杆。
+课程与表头描边基于 COUIFloatingButton 的 `TYPE_FRAMEWORK_CIRCLE_2` 原生边缘/阴影预设。课程卡固定边缘 alpha 0.45、宽度 3 dp，保留原生角度及阴影衰减；表头保留预设。这个预设定义描边 shader，不定义轮廓半径。按 COUIButton 的顺序，先根据实际 Shape、密度、尺寸设置 `OplusMaterialCornerParams`，再安装材质描边。Kyant 连续圆角从 `RoundedRectangularShape.corners` 读取，课程卡保留实际半径，胶囊才使用半高圆角；未知或不均匀路径不强行改成胶囊。课程跟手光独立为 1.2×，按 View 当前尺寸的对角线更新半径范围，保留原生起止半径比例；表头和其他普通表面保持 2×。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画，不显示说明文字、旧轮廓光开关或折射滑杆。
 
 所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
 
@@ -116,5 +128,7 @@ AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的�
 首页和公共设置/二级页顶栏通过 `LocalToolbarBackdropBlurred` 告知图标按钮底下是否已有渐变模糊。存在渐变层时，按钮自身的第二次背景模糊半径降为对应预设的 0.35 倍；没有渐变层时仍使用完整预设。沿用各自天气/深色顶栏的颜色层和 BlendMode，保留原生材质、描边与跟手光，不开启 drawable-only 模式。此调整减轻两次模糊叠加，并不宣称只剩一次采样。
 
 ## 验证入口
+
+当前浮动面板、完整原生 popup、全局主题色与完整甩尾的验证见[2026-10-13 修订记录](../reports/2026-10-13-coloros-floating-native-popup.md)。`NativePopupPreferenceTest` 检查选择后重开，`QuickScheduleSheetLifecycleTest` 检查浮动面板反复显示及保存语义，`HomeSwitchMotionTest` 检查密集页面追随、回弹、反向及结束状态。
 
 UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。`NativeDialogTouchGateTest` 检查窗口坐标与触摸序列，`NativeValueControlsTest` 检查预览事务及百分比映射，`ColorOsMaterialCornersTest` 检查真实圆角。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[输入、控件与材质修订](../reports/2026-10-13-coloros-picker-input.md)，前轮记录见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。

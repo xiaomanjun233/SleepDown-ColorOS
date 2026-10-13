@@ -7,12 +7,16 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.yield
 import org.junit.Assert.*
 import org.junit.Test
 
 class HomeSwitchMotionTest {
-    @Test fun nativeMaterialKeepsDensePageFollowersAndRebound() = runBlocking {
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun nativeMaterialKeepsDensePageFollowersAndRebound() = runTest {
         val frames = Frames()
         val target = mutableStateOf(true)
         val motion = HomeSwitchMotion(false, target, fullMotion = true, renderedCardCount = { 30 })
@@ -21,7 +25,11 @@ class HomeSwitchMotionTest {
         var sawStagger = false
         var sawRebound = false
         repeat(120) {
+            // Group starts use coroutine delay; advance it together with animation frames.
+            advanceTimeBy(17)
+            runCurrent()
             frames.next()
+            runCurrent()
             val groups = (0 until 6).map(motion::groupProgress)
             sawStagger = sawStagger || groups.any { it != motion.progress.value }
             sawRebound = sawRebound || groups.any { it > 1f }
