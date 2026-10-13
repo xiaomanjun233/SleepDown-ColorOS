@@ -18,6 +18,8 @@
 
 Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载状态的正常更新。`ColorOsCapsuleMotionBinding` 订阅 COUIButton 自身的 `COUITouchMotionAnimator`，从同一个 `ContributeSink` 取得位移与缩放；Row 只在 graphicsLayer 块中读取这些值，不在组合阶段读取，也不创建第二套弹簧。销毁时解除回调。旧的 ViewOverlay 跨 Canvas 录制方案已因实机文字消失撤回。
 
+原生 View 实例因主次按钮样式改变而重建时，`AndroidView` 以该实例为 key 同步重建宿主。仅替换 remember 的对象不会重新调用 factory，会留下已经解绑点击和运动监听的旧 View。菜单行、材质表面与数值控件遵循相同的实例归属。
+
 普通按钮使用系统 secondary 材质。彩色操作沿用操作颜色，通过 `accentButtonBlurParams` 与加号共用颜色层写法：基于 `TYPE_FRAMEWORK_FAB`，第一层直接使用操作颜色，保留系统第二层和混合模式，颜色不再经 primary 预设的透明度衰减；总透明度 255，模糊半径为 FAB 预设的 0.85 倍。禁用按钮继续使用系统 disabled-primary 预设；确认按钮保持主题色与白字，删除等动作保留语义色。跟手光沿用系统默认光色和当前 2× 强度。
 
 `clickTargetEnabled = false` 的弹层外壳、输入区域和共享手势表面不是普通按钮，不会被该入口变成可点击胶囊。它们继续使用各自的几何、采样与手势宿主。
@@ -67,13 +69,15 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预览，值变化只预览，正常结束先提交再结束预览；取消恢复开始值而不提交；键盘/无障碍变化无需制造触摸预览。禁用状态传入原生 View。课程模糊使用上文百分比映射。
 
+拖动接近默认值（全范围的 1.5% 内）时，同时同步 COUI 的原生 progress 和预览值，原生回传的程序更新不再次提交。离开吸附区继续跟手；键盘/无障碍的小步调整不吸附，避免无法从默认值移开。自定义时间与按节次的模式切换使用同一 `LiquidOptionTabs` / COUI 分段滑块，保留两侧未确认的选择状态。
+
 独立使用的 `COUISwitch` 显式启用 clickable / focusable；Settings 的 preference 样式默认依赖外部行处理点击。开关选中轨道和滑条进度使用所在页面的按钮主题色。原生 Slider 不套旧 `SliderWithSnapMarker`：默认值标记读取 COUI 的 `getProgressStart`、`getSeekBarLength` 和 `getSeekBarCenterY`，与系统轨道内边距、RTL 保持一致，不修改原生弹性形变。
 
 ## 菜单与教务面板
 
-加号菜单的本体使用与右上角菜单相同的 `RoundFrameLayout` 和 `DefaultAdapter` 原生菜单项。`NativeMenuRenderer` 只定义菜单数据、行和表面的接口，原宿主仍维护位置、尺寸、源按钮交接和开合动画。图标、文字及原生选中标记属于同一行；菜单面板继续按首页规则取中性或深色材质，FAB 本体仍由自己的着色控制。
+加号菜单的条目与右上角菜单共用 `DefaultAdapter`，嵌入页面的外壳使用 `ColorOsMaterialSurface` 的 View 级材质。`NativeMenuRenderer` 只定义菜单数据、行和表面的接口，原宿主仍维护位置、尺寸、源按钮交接和开合动画。图标、文字及原生选中标记属于同一行；菜单面板继续按首页规则取中性或深色材质，FAB 本体仍由自己的着色控制。
 
-Settings 的 `RoundFrameLayout.updateBlurCornerRadius` 是私有方法，绑定时通过 declared method 解析并缓存。圆角动画不能在绘制阶段重新按 public method 查找，否则打开加号菜单会直接崩溃。
+`RoundFrameLayout` 的 `COUIBackgroundBlurBuilder` 通过 `ViewRootManager` 获取窗口背景模糊，仅留给真正独立的 `COUIPopupListWindow`。页面内部 popup / 加号菜单改用按钮同源的 `COUIMaterialEffect.setViewBlurEffect` 采样当前窗口前序内容，避免窗口后方的黑色背景。圆角由实际 Shape 提供；菜单跟手光使用 `TYPE_TRANSLUCENT_LARGE_1` 与 3× 强度。
 
 公共 Miuix 普通菜单与级联主次菜单通过 `miuix-popup-material-content.patch` 和 `miuix-native-menu-body.patch` 挂载同款 COUI 外框、菜单行及返回标题。原菜单继续负责进退场、父级冻结、点击和滑动选择，不额外启动 `COUIPopupListWindow` 的窗口动画。原生行提供 View 测量桥接，支持弹层的 intrinsic 宽度查询；按压状态交给原生行，公共宿主将触摸转发给背景跟手光，坐标按原生 View 的屏幕位置换算。右上角独立原生弹窗与嵌入菜单共用条目着色规则，保留项目图标和删除红色。
 
@@ -103,7 +107,7 @@ AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的�
 
 课程凝光保留课程渐变色与默认 50% 着色。模糊滑杆显示 0%–100%：0% 对应系统默认半径的 20%，50% 对应系统默认值，100% 对应两倍半径；前后两段线性映射。内部仍保存半径比例，读取旧值时将低于 0.2 的值限制到新的最低强度，其余旧值保留实际效果并换算显示。偏好仅保存在派生版的独立 SharedPreferences，不改变 Room 和备份格式；拖动预览不写盘，提交后保存，预览取消时恢复已保存值。
 
-课程与表头描边改用 COUIButton 通透内容默认预设 `TYPE_CONTENT_CAPSULE_3`，撤掉 Dock 预设的 1.3 倍宽度覆盖。按 COUIButton 的顺序，先根据实际 Shape、密度、尺寸设置 `OplusMaterialCornerParams`，再安装材质描边；只做 ViewOutline 裁剪无法让原生描边沿圆角走。Kyant 连续圆角从 `RoundedRectangularShape.corners` 读取，课程卡保留实际半径，胶囊才使用半高圆角；未知或不均匀路径不强行改成胶囊。跟手光保持系统默认色与 2× 强度。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画，不显示说明文字、旧轮廓光开关或折射滑杆。
+课程与表头描边对齐 COUIFloatingButton 的 `TYPE_FRAMEWORK_CIRCLE_2` 原生边缘/阴影预设，不额外放大宽度或透明度。这个预设定义描边 shader，不定义轮廓半径。按 COUIButton 的顺序，先根据实际 Shape、密度、尺寸设置 `OplusMaterialCornerParams`，再安装材质描边；只做 ViewOutline 裁剪无法让原生描边沿圆角走。Kyant 连续圆角从 `RoundedRectangularShape.corners` 读取，课程卡保留实际半径，胶囊才使用半高圆角；未知或不均匀路径不强行改成胶囊。跟手光保持系统默认色与 2× 强度。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画，不显示说明文字、旧轮廓光开关或折射滑杆。
 
 所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
 
