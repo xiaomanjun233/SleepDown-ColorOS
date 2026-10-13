@@ -297,7 +297,7 @@ private class NativeFormDismissGuard(dialog: AndroidDialog, source: ColorOsNativ
     private val panelId = source.resource("parentPanel", "id")
     private val bounds = Rect()
     private var disposed = false
-    private var outsideTouch = false
+    private val touchGate = NativeDialogTouchGate(onDismissRequest)
     private var backCallback: android.window.OnBackInvokedCallback? = null
     private val callback = Proxy.newProxyInstance(delegate.javaClass.classLoader,
         arrayOf(Window.Callback::class.java)) { _, method, args ->
@@ -305,15 +305,7 @@ private class NativeFormDismissGuard(dialog: AndroidDialog, source: ColorOsNativ
             val event = args?.firstOrNull() as? MotionEvent
             val panel = window.decorView.findViewById<View>(panelId)
             if (event != null && panel != null && panel.getGlobalVisibleRect(bounds)) {
-                val outside = !bounds.contains(event.rawX.toInt(), event.rawY.toInt())
-                if (event.actionMasked == MotionEvent.ACTION_DOWN) outsideTouch = outside
-                if (event.actionMasked == MotionEvent.ACTION_OUTSIDE || outsideTouch) {
-                    if (outside && (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_OUTSIDE))
-                        onDismissRequest()
-                    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL)
-                        outsideTouch = false
-                    return@newProxyInstance true
-                }
+                if (touchGate.consume(event, bounds)) return@newProxyInstance true
             }
         }
         try { method.invoke(delegate, *(args ?: emptyArray())) }

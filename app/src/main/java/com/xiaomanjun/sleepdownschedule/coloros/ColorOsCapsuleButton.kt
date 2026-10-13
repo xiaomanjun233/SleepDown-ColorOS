@@ -48,6 +48,10 @@ internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: 
             val view = native.first.load("com.coui.appcompat.button.COUIButton")
                 .getConstructor(Context::class.java).newInstance(native.second) as TextView
             native.first.configureCapsuleButton(view, primary)
+            // COUIButton keeps the constructor's legacy background inside COUIStateEffectDrawable.
+            // Its setBackground(null) clears only that base drawable, retaining native ripple,
+            // material, stroke and motion. Do not leave a white platform button behind the glass.
+            view.background = null
             view.apply {
                 minWidth = 0
                 minimumWidth = 0
