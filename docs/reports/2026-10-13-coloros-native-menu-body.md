@@ -25,3 +25,9 @@
 - `oplusbox-analysis/releases/SleepDown-ColorOS-1.2.7_beta5-native-menu-body.apk`，7,442,842 字节，不入 Git。
 - 包名 `com.xiaomanjun.sleepdownschedule.coloros`；名称 `SleepDown课程表`；版本 `1.2.7_beta5` / `34`。
 - SHA-256：`AD5CE656DDABC3E881F86A139F1379144485CD55D9D20EC97FC184FCB477BD03`。
+
+## 后续安装与 ADB 入口调整
+
+用户重新连接 USB 后，已有服务的只读查询显示手机在 5037 在线，5038 的设备列表为空。旧入口强制选择 5038 并按服务归属执行重启，已按用户要求去掉。入口现在保留 SDK 客户端定位、原样传递 ADB 服务参数、遵循环境配置及原有 connect 失败码修正；不覆盖 ADB 环境变量，也不自动停止其他服务。项目 AGENTS.md 同步取消固定端口要求。
+
+PowerShell 语法检查、默认入口设备发现及显式端点调用均通过。复用当前连接对 OPPO PLJ110（Android 17）覆盖安装上述同一 SHA-256 APK，ADB 返回 `Success`；包管理器确认 `1.2.7_beta5` / `34`，更新时间 `2026-10-13 13:02:45`。操作前后两个 ADB 进程 PID 未变，没有重启服务、清理应用数据或启动应用。仅调整安装脚本和文档，复用已签名产物，没有重新构建 Android 包；页面视觉仍待用户验收。
