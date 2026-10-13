@@ -17,6 +17,10 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class ColorOsMaterialCornersTest {
+    @Test fun fullScreenRectangleClearsTheCapsuleCategory() {
+        assertEquals(ColorOsMaterialCorners(0f, 3f), colorOsMaterialCorners(
+            androidx.compose.ui.graphics.RectangleShape, Size(360f, 800f), Density(1f), LayoutDirection.Ltr))
+    }
     @Test fun tallCourseCardUsesItsOwnCornerInsteadOfHalfTheHeight() {
         assertEquals(ColorOsMaterialCorners(24f, 3f),
             colorOsMaterialCorners(RoundedRectangle(12.dp), Size(160f, 480f), Density(2f), LayoutDirection.Ltr))

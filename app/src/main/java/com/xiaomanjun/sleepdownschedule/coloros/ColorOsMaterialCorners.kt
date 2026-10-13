@@ -34,8 +34,7 @@ internal fun colorOsMaterialCorners(
     // Same shape categories as COUIButton.updateStrokeCorner, with the owner's actual radius.
     val weight = when {
         radius == size.minDimension / 2f -> if (size.width == size.height) 2f else 1f
-        radius > 0f -> 3f
-        else -> 1f
+        else -> 3f // COUIButton treats every explicit non-capsule radius, including zero, as 3.
     }
     return ColorOsMaterialCorners(radius, weight)
 }

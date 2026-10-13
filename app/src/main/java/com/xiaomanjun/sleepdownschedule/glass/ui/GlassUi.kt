@@ -1,6 +1,7 @@
 package com.xiaomanjun.sleepdownschedule.glass.ui
 
 import com.xiaomanjun.sleepdownschedule.glass.insetShapeFor
+import com.xiaomanjun.sleepdownschedule.glass.glassMorphContent
 import androidx.compose.ui.graphics.drawscope.inset
 
 import com.xiaomanjun.sleepdownschedule.*
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -554,12 +556,16 @@ fun GlassSurface(
 ) {
     if (nativeMaterial) {
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+        val nativeDensity = LocalDensity.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
-            modifier = modifier, shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
+            // A native RenderNode material occupies the View's bounds. An inset generic path
+            // only clips its default capsule; it cannot relocate the stroke inside an envelope.
+            modifier = if (morphAllocation != null) modifier.glassMorphContent(morphAllocation) else modifier,
+            shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
             blurRadiusScale = nativeBlurRadiusScale,
             onClick = onClick,
             shapeProvider = if (morphAllocation != null) {
-                { morphAllocation.envelope.insetShapeFor(morphAllocation.geometry()) }
+                { RoundedRectangle(with(nativeDensity) { morphAllocation.geometry().cornerRadiusPx.toDp() }) }
             } else shapeProvider,
             edgeEffects = tokens.highlightAlpha > 0f || tokens.borderAlpha > 0f
         ), content) == true) return

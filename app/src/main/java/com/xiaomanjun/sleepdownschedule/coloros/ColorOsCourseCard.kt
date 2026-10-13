@@ -147,7 +147,7 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
                 drawContent()
             }, update = {
             source.updateTheme(context, request.dark)
-            it.updateOutline(request.shape, density, direction)
+            it.updateOutline(request.shapeProvider?.invoke() ?: request.shape, density, direction)
             it.configure(request, density, direction)
         })
         CompositionLocalProvider(
