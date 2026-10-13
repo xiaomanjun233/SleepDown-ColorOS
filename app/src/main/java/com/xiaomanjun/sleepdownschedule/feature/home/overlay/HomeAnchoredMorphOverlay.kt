@@ -1461,6 +1461,33 @@ internal fun HomeAnchoredMorphOverlayHost(
             else (if (sourceLightGlass) HomeLightGlassSurfaceColor else Color(0xFF121212))
                 .copy(alpha = homeChromeGlassSurfaceAlpha(sourceLightGlass))
         if (movingDroplet) {
+            val nativeRenderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+            val nativeMovingSurface = nativeRenderer?.invoke(
+                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+                    modifier = Modifier.offset {
+                        val rect = geometry.value.rect
+                        IntOffset(rect.left.roundToInt(), rect.top.roundToInt())
+                    }.layout { measurable, _ ->
+                        val rect = geometry.value.rect
+                        val width = rect.width.roundToInt().coerceAtLeast(1)
+                        val height = rect.height.roundToInt().coerceAtLeast(1)
+                        val child = measurable.measure(Constraints.fixed(width, height))
+                        layout(width, height) { child.place(0, 0) }
+                    }.graphicsLayer {
+                        this.shape = shape
+                        clip = true
+                        alpha = when {
+                            sourceHandedOff -> 0f
+                            motionState.phase == HomeAnchoredOverlayPhase.Preparing || preparingCloseSurface -> 0.001f
+                            else -> 1f - dropFrame.value.sourceAlpha
+                        }
+                    }.drawWithContent { drawContent(); addMenuSurfacePrepared.set(true) },
+                    shape = settledSurfaceShape,
+                    shapeProvider = { RoundedRectangle(with(density) { geometry.value.cornerRadiusPx.toDp() }) },
+                    dark = LocalColorOsHomeChromeStyle.current?.dark ?: !glassUsesLightStyle(config)
+                )
+            ) {} == true
+            if (!nativeMovingSurface) {
             val margin = with(density) { 18.dp.toPx() }
             val source = shown.sourceBoundsInRoot
             val envelope = Rect(min(source.left, targetRect.left) - margin, min(source.top, targetRect.top) - margin,
@@ -1496,6 +1523,7 @@ internal fun HomeAnchoredMorphOverlayHost(
                     lensAmountPx = { with(density) { lerp((if (shown.fromDock) 40.dp else 24.dp).toPx(),
                         24.dp.toPx(), dropFrame.value.menuBlend) } })
                 .drawWithContent { drawContent(); addMenuSurfacePrepared.set(true) })
+            }
         }
 
         Box(
@@ -2782,7 +2810,16 @@ internal fun HomeAddMenuMorphPanel(
                     drawContent()
                     onSurfaceDrawn()
                 }
-            if (backdrop != null) {
+            val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+            val nativeRendered = nativeSurface?.invoke(
+                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+                    modifier = surfaceModifier, shape = shape,
+                    dark = homeStyle?.dark ?: !lightGlass, renderSurface = !externalSurface
+                )
+            ) { MenuContent() } == true
+            if (nativeRendered) {
+                // Input and row animation remain with the existing menu host.
+            } else if (backdrop != null) {
                 LiquidButton(
                     onClick = {},
                     backdrop = backdrop,

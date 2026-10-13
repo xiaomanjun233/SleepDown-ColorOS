@@ -178,6 +178,7 @@ git -C ../miuix-reference apply "$miuixPatchRoot/miuix-compact-dropdown.patch"
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-popup-slide-feedback.patch"
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-popup-hover-layout.patch"
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-cascading-anchor-morph.patch"
+git -C ../miuix-reference apply "$miuixPatchRoot/miuix-popup-material-content.patch"
 $miuixSourceRoot = (Resolve-Path ../miuix-reference).Path
 .\gradlew.bat assembleGithubDebug "-Psleepdown.miuixSourcePath=$miuixSourceRoot"
 ```

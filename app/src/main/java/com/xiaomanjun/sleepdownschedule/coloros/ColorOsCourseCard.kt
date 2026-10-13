@@ -47,9 +47,8 @@ private const val CourseBlurScale = "blur_radius_scale"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
 private const val BlurType = "com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType"
 private const val CourseBlurPreset = "TYPE_CONTENT_TRANSPARENT_BUTTON"
-// BaseBottomFloatingMenuView's RenderNode stroke and follow-light presets. Geometry still
-// comes from the course's outline, never the Dock's capsule corner radius.
-private const val CourseStrokePreset = "TYPE_FRAMEWORK_CAPSULE_3"
+// COUIButton's transparent content preset; its corner params are installed before the stroke.
+private const val CourseStrokePreset = "TYPE_CONTENT_CAPSULE_3"
 private const val CourseLightPreset = "TYPE_OPAQUE_MEDIUM_2"
 private const val StrokeType = "com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType"
 private const val LightDrawable = "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable"
@@ -115,7 +114,7 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
 internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Composable () -> Unit): Boolean {
     val mode = LocalNativeCourseCardMode.current ?: return false
     if (!mode.enabled) return false
-    return ColorOsMaterialSurface(request.copy(strokeWidthScale = 1.3f, blurRadiusScale = mode.blurRadiusScale), content)
+    return ColorOsMaterialSurface(request.copy(blurRadiusScale = mode.blurRadiusScale), content)
 }
 
 /** Shared native backdrop for cards, table headers and assistant shells, with no input interception. */
@@ -166,6 +165,9 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private val strokeType = source.load(StrokeType)
     private val setBlur = effect.getMethod("setViewBlurEffect", View::class.java, blurType)
     private val setStroke = effect.getMethod("setViewStrokeEffect", View::class.java, strokeType)
+    private val cornerType = source.load("com.oplus.view.material.OplusMaterialCornerParams")
+    private val setCorners = effect.getMethod("setCornerParams", View::class.java, cornerType)
+    private var appliedCorners: ColorOsMaterialCorners? = null
     private val managerType = source.load("com.coui.appcompat.COUIMaterialStateManager")
     private val manager = managerType.getField("INSTANCE").get(null)
     private val light = source.load(LightDrawable).getConstructor().newInstance() as Drawable
@@ -220,6 +222,19 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         tintDensity = density
         tintDirection = direction
         invalidateOutline()
+        if (isAttachedToWindow) updateMaterialCorners()
+    }
+
+    private fun updateMaterialCorners() {
+        val shape = surfaceShape ?: return
+        val corners = colorOsMaterialCorners(shape, Size(width.toFloat(), height.toFloat()), tintDensity, tintDirection)
+        if (corners == appliedCorners) return
+        val params = corners?.let {
+            cornerType.getConstructor(Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
+                .newInstance(it.radius, it.weight)
+        }
+        setCorners.invoke(null, this, params)
+        appliedCorners = corners
     }
 
     fun configure(value: NativeMaterialSurfaceRequest, density: Density, direction: LayoutDirection) {
@@ -227,7 +242,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         val previous = request
         val materialChanged = previous == null || previous.dark != value.dark ||
             previous.materialVisible != value.materialVisible || previous.edgeEffects != value.edgeEffects ||
-            previous.blurRadiusScale != value.blurRadiusScale || previous.strokeWidthScale != value.strokeWidthScale
+            previous.blurRadiusScale != value.blurRadiusScale
         request = value
         tintDensity = density
         tintDirection = direction
@@ -274,8 +289,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
             managerType.getMethod("isBlurEffectEnable").invoke(manager) == true
         val stroke = value.materialVisible && value.edgeEffects && managerType.getMethod("isStrokeEffectEnable").invoke(manager) == true
         val glow = value.materialVisible && value.edgeEffects && managerType.getMethod("isSpotLightEffectEnable").invoke(manager) == true
-        // Keep the content-glass blur and course gradient; use the Dock's native edge/light
-        // presets for stronger top/bottom highlights, without changing the card's outline.
+        // Match COUIButton's native order: geometry first, then the system material presets.
+        updateMaterialCorners()
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
         if (blur && value.blurRadiusScale != 1f) {
             effect.getMethod("setViewBlurEffect", View::class.java,
@@ -284,24 +299,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         } else {
             setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
         }
-        if (stroke && value.strokeWidthScale != 1f) {
-            val params = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$Companion\$StrokeEffectParams")
-            val preset = effect.getMethod("getStrokeParamsByType", Context::class.java, strokeType)
-                .invoke(null, context, strokeType.getField(CourseStrokePreset).get(null))
-            fun scalar(name: String) = params.getMethod(name).invoke(preset) as Float
-            // Widen Dock's light rim slightly along the existing outline. Keep its intensity,
-            // light angle and shadow falloff; no extra corner geometry or painted white border.
-            val widened = params.getConstructor(Int::class.javaPrimitiveType,
-                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType,
-                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
-                .newInstance(params.getMethod("getStrokeType").invoke(preset), scalar("getEdgeAlpha"),
-                    scalar("getEdgeWidthDp") * value.strokeWidthScale, scalar("getEdgeAngle"),
-                    scalar("getShadowFadeIn"), scalar("getShadowFadeOut"), scalar("getShadowFadeScale"))
-            effect.getMethod("setViewStrokeEffect", View::class.java, params).invoke(null, this, widened)
-        } else {
-            setStroke.invoke(null, this, strokeType.getField(
-                if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
-        }
+        setStroke.invoke(null, this, strokeType.getField(
+            if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
         invalidate()
     }
@@ -324,6 +323,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private fun clearMaterial() {
         clearBlur()
         setStroke.invoke(null, this, strokeType.getField("TYPE_NO_EFFECT").get(null))
+        setCorners.invoke(null, this, null)
+        appliedCorners = null
         light.javaClass.getMethod("cancel").invoke(light)
     }
 

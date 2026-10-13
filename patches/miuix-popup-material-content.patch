@@ -1,0 +1,75 @@
+diff --git a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt
+@@ -91,6 +91,8 @@
+ @Immutable
+ data class ListPopupVisualStyle(
+     val surfaceModifier: Modifier = Modifier,
++    // Optional material child, measured with the panel. Null retains modifier-only rendering.
++    val surfaceContent: (@Composable (Modifier, (() -> androidx.compose.ui.geometry.RoundRect)?) -> Unit)? = null,
+     val backgroundColor: Color? = null,
+     val cornerRadius: Dp = 16.dp,
+     val itemTextStyle: TextStyle? = null,
+@@ -779,6 +781,7 @@
+             .then(visualStyle.surfaceModifier)
+             .background(color = backgroundColor),
+         ) {
++            visualStyle.surfaceContent?.invoke(Modifier.matchParentSize(), null)
+             content()
+         }
+     }
+diff --git a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/PopupMorphContent.kt b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/PopupMorphContent.kt
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/PopupMorphContent.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/PopupMorphContent.kt
+@@ -150,7 +150,7 @@
+                 }
+                 .then(style.surfaceModifier)
+                 .background(background)
+-            )
++            ) { style.surfaceContent?.invoke(Modifier.matchParentSize(), panel) }
+             Box(Modifier
+                 .onSizeChanged(onSizeChanged)
+                 .drawWithCache {
+diff --git a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/CascadingMorphContent.kt b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/CascadingMorphContent.kt
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/CascadingMorphContent.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/CascadingMorphContent.kt
+@@ -206,7 +206,10 @@
+                 .dropShadow(shape = shape, shadow = CascadeShadow)
+                 .then(visualStyle.surfaceModifier)
+                 .background(color = visualStyle.backgroundColor ?: surfaceColor),
+-        ) { primaryContent() }
++        ) {
++            visualStyle.surfaceContent?.invoke(Modifier.matchParentSize(), null)
++            primaryContent()
++        }
+     }
+     }
+ }
+@@ -285,6 +288,19 @@
+     val anchorTopLeft = anchorLocalInUnion.topLeft
+     val secondaryTopLeft = secondaryLocalInUnion.topLeft
+     val secondaryWidth = secondaryLocalInUnion.width
++    val materialPanel = {
++        val fraction = expandFraction()
++        val anchorRadius = minOf(cornerPx, anchorLocalInUnion.height / 2f)
++        val top = CornerRadius(lerp(anchorRadius, cornerPx, fraction.coerceIn(0f, 1f)))
++        val bottom = if (isAnchorPopupLast) CornerRadius(cornerPx) else top
++        RoundRect(
++            lerp(anchorLocalInUnion.left.toFloat(), secondaryLocalInUnion.left.toFloat(), fraction),
++            lerp(anchorLocalInUnion.top.toFloat(), secondaryLocalInUnion.top.toFloat(), fraction),
++            lerp(anchorLocalInUnion.right.toFloat(), secondaryLocalInUnion.right.toFloat(), fraction),
++            lerp(anchorLocalInUnion.bottom.toFloat(), secondaryLocalInUnion.bottom.toFloat(), fraction),
++            top, top, bottom, bottom
++        )
++    }
+ 
+     CompositionLocalProvider(
+         LocalListPopupVisualStyle provides visualStyle,
+@@ -364,6 +380,7 @@
+     ) {
+         // propagateMinConstraints stretches ListPopupColumn to secondaryWidth; without it the
+         // column collapses to its intrinsic min and leaves an unclickable strip.
++        visualStyle.surfaceContent?.invoke(Modifier.matchParentSize(), materialPanel)
+         Box(
+             modifier = Modifier
+                 .graphicsLayer {

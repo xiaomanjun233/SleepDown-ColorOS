@@ -550,14 +550,13 @@ fun GlassSurface(
     nativeMaterial: Boolean = false,
     nativeDark: Boolean? = null,
     nativeBlurRadiusScale: Float = 1f,
-    nativeStrokeWidthScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     if (nativeMaterial) {
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
             modifier = modifier, shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
-            blurRadiusScale = nativeBlurRadiusScale, strokeWidthScale = nativeStrokeWidthScale,
+            blurRadiusScale = nativeBlurRadiusScale,
             onClick = onClick,
             shapeProvider = if (morphAllocation != null) {
                 { morphAllocation.envelope.insetShapeFor(morphAllocation.geometry()) }
@@ -1048,7 +1047,7 @@ fun BlueStatusGlassPill(
     val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
     if (nativeSurface?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
         modifier = modifier, shape = shape, dark = !glassUsesLightStyle(config),
-        onDrawTint = nativeTint, blurRadiusScale = 0.6f, strokeWidthScale = 1.3f
+        onDrawTint = nativeTint, blurRadiusScale = 0.6f
     ), content) == true) return
     Box(modifier = modifier) {
         GlassSurface(

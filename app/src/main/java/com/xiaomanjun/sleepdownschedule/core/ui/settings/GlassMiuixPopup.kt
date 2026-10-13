@@ -19,6 +19,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import com.kyant.shapes.RoundedRectangle
@@ -31,6 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -210,6 +219,8 @@ private fun rememberMiuixListPopupStyle(
 ): ListPopupVisualStyle {
     val scope = rememberCoroutineScope()
     val dark = appUsesDarkTheme(config)
+    val nativeMaterial = LocalNativeMaterialSurfaceRenderer.current != null &&
+        !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
     val radiusCapPx = with(LocalDensity.current) { 90.dp.toPx() }
     val highlight = remember(scope, radiusCapPx, dark) {
         InteractiveHighlight(scope, radius = { minOf(it.minDimension * 0.65f, radiusCapPx) },
@@ -234,18 +245,22 @@ private fun rememberMiuixListPopupStyle(
     return ListPopupVisualStyle(
     // Independent size/origin tracks follow Nexio's current popup motion. Sampling remains
     // in the stationary canvas, with our own material and neutral interaction feedback.
-    surfaceModifier = Modifier.miuixCascadingPopupSurface(
+    surfaceModifier = if (nativeMaterial) Modifier else Modifier.miuixCascadingPopupSurface(
         backdrop = backdrop,
         config = config,
         blurRadius = 10.dp
     ).then(highlight.modifier),
+    surfaceContent = if (nativeMaterial) { modifier, panel ->
+        PopupNativeMaterial(modifier, panel, cornerRadius, backdrop, config)
+    } else null,
     backgroundColor = Color.Transparent,
     cornerRadius = cornerRadius,
     itemTextStyle = MiuixTheme.textStyles.main.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
     itemVerticalPadding = 7.dp,
     itemMinHeight = 40.dp,
     border = if (com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance)
-        BorderStroke(1.dp, com.xiaomanjun.sleepdownschedule.glass.flatControlBorder(dark)) else rim,
+        BorderStroke(1.dp, com.xiaomanjun.sleepdownschedule.glass.flatControlBorder(dark))
+        else if (nativeMaterial) null else rim,
     morphAnimation = true,
     slideSelection = true,
     dimBackground = false,
@@ -258,6 +273,30 @@ private fun rememberMiuixListPopupStyle(
     interactionModifier = interaction,
     suspendedInteractionModifier = visualInteraction
     )
+}
+
+/** Native View occupies the moving panel, rather than the union/shadow allocation canvas. */
+@Composable
+private fun PopupNativeMaterial(modifier: Modifier, panel: (() -> RoundRect)?, cornerRadius: Dp,
+    backdrop: Backdrop?, config: ScheduleConfigEntity) {
+    val shape = RoundedRectangle(cornerRadius)
+    val placed = if (panel == null) modifier else modifier.layout { measurable, constraints ->
+        val rect = panel()
+        val child = measurable.measure(Constraints.fixed(rect.width.roundToInt().coerceAtLeast(1),
+            rect.height.roundToInt().coerceAtLeast(1)))
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            child.place(rect.left.roundToInt(), rect.top.roundToInt())
+        }
+    }
+    val rendered = LocalNativeMaterialSurfaceRenderer.current?.invoke(NativeMaterialSurfaceRequest(
+        modifier = placed, shape = shape, dark = appUsesDarkTheme(config),
+        shapeProvider = panel?.let { bounds -> {
+            val rect = bounds()
+            RoundedCornerShape(CornerSize(rect.topLeftCornerRadius.x), CornerSize(rect.topRightCornerRadius.x),
+                CornerSize(rect.bottomRightCornerRadius.x), CornerSize(rect.bottomLeftCornerRadius.x))
+        } }
+    )) {} == true
+    if (!rendered) Box(placed.miuixCascadingPopupSurface(backdrop, config, 10.dp))
 }
 
 @Composable

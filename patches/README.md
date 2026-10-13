@@ -14,6 +14,8 @@
 
 7. `miuix-cascading-anchor-morph.patch`：级联根菜单可复用设置页 Popup 的锚点 Morph、内容交接和进出场参数；模型选择器启用此入口，二级菜单仍保持原有展开与父级冻结行为。依次应用前六份后再应用本补丁。
 
+8. `miuix-popup-material-content.patch`：给普通、Morph 和级联主次菜单增加可选材质子节点插槽，并传递动画中的实际面板轮廓。ColorOS 实现通过此处挂载原生 View；布局、级联、触摸与进退场仍由原菜单维护。默认空插槽保持原行为。
+
 从全新官方源码按上述顺序 `git apply`，具体命令见根目录 README。旧补丁目录不要再次叠加新版完整补丁，应使用新的依赖目录。`sleepdown.miuixSourcePath` 指向打完补丁的源码根目录。
 
 2026-09-10 重新导出已在本地使用的 UI/preference 源码差异，补齐 Scaffold 和菜单接口，修正旧级联补丁损坏的 hunk。没有改动本地 Miuix 运行时代码，也没有导出本地 IDE、CI 清理、构建产物或未使用的 blur 实验。公开补丁可通过普通 `git apply --check`，不需要 `--recount` 或忽略空白错误。
