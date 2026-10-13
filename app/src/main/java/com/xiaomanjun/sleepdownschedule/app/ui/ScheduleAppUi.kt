@@ -1600,7 +1600,10 @@ fun CourseScheduleAppUi(
     // sampled wallpaper upward by the top-bar height.
     val homeAnchoredOverlayBackdrop = rememberScreenScaledBackdrop(
         backdrop = cachedWeekHomeBackdrop,
-        scale = { homeAnchoredMorphState.backgroundZoom.value },
+        scale = {
+            val zoom = homeAnchoredMorphState.backgroundZoom.value
+            1f + (zoom - 1f) * (1f - personalizationPreviewProgress)
+        },
         rootPositionOnScreen = { homeRootPositionOnScreen },
         rootSize = { homeReadabilityRootSize }
     )
@@ -1624,9 +1627,10 @@ fun CourseScheduleAppUi(
             (homeMenuDestinationMotionState.phase != HomeAnchoredOverlayPhase.Idle &&
                 homeMenuDestinationMotionState.kind == HomeMenuDestinationKind.EduImport)
     val homeOverlayBackgroundZoom: () -> Float = {
-        // Slider preview changes course pixels and blur, never the depth of the whole home.
-        // The former preview-progress interpolation enlarged/shrank the Dock on every drag.
-        if (fullScreenMenuDestinationActive) {
+        if (personalizationPreviewProgress > 0.001f) {
+            val zoom = homeAnchoredMorphState.backgroundZoom.value
+            1f + (zoom - 1f) * (1f - personalizationPreviewProgress)
+        } else if (fullScreenMenuDestinationActive) {
             homeMenuDestinationMotionState.backgroundZoom.value
         } else {
             maxOf(
@@ -1826,9 +1830,7 @@ fun CourseScheduleAppUi(
             homeMenuDestinationMotionState.phase == HomeAnchoredOverlayPhase.Closing ||
             courseEditorOverlayPhase == CourseEditorOverlayPhase.Closing
     val legacyHomeOverlayBackgroundBlurProgress: () -> Float = {
-        // Reveal the live course preview without changing the geometry of the Dock or page.
-        val legacyDepth = homeOverlayDepthProgress(homeOverlayBackgroundZoom()) *
-            (1f - personalizationPreviewProgress)
+        val legacyDepth = homeOverlayDepthProgress(homeOverlayBackgroundZoom())
         val previewActive = personalizationSliderPreviewKey != null ||
             personalizationPreviewProgress > 0.001f
         val substantialOverlayActive = substantialCourseEditorCoverage ||
@@ -7137,10 +7139,10 @@ fun PersonalizePanel(
                         PersonalizeValueSlider(
                             sliderKey = PersonalizeNativeCardBlurSlider,
                             modifier = Modifier.rowEntrance(11 + weekContentRows),
-                            value = material.blurRadiusScale * 50f, valueRange = 0f..100f, backdrop = backdrop,
-                            label = { "凝光模糊 ${it.toInt()}" },
-                            onCommit = { material.onBlurRadiusScaleChange(it / 50f, true) },
-                            onPreviewValueChange = { material.onBlurRadiusScaleChange(it / 50f, false) },
+                            value = material.blurPercent, valueRange = 0f..100f, backdrop = backdrop,
+                            label = { "凝光模糊 ${it.toInt()}%" },
+                            onCommit = { material.onBlurPercentChange(it, true) },
+                            onPreviewValueChange = { material.onBlurPercentChange(it, false) },
                             previewSliderKey = previewSliderKey, previewProgress = previewProgress,
                             onSliderPreviewActiveChange = { key, active ->
                                 onSliderPreviewActiveChange(key, active)
@@ -8206,7 +8208,19 @@ fun LiquidControlSlider(
         snapValue = safeSnapValue,
         valueRange = valueRange
     ) {
-        if (backdrop != null && enabled) {
+        val nativeSlider = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSliderRenderer.current
+        val nativeRendered = nativeSlider?.invoke(
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeSliderRequest(
+                value = { localValue }, range = valueRange, onPreview = ::updatePreview,
+                onPreviewMode = { active ->
+                    previewModeActive = active
+                    onSliderTouchActiveChange(active)
+                }, onCommit = ::commit, modifier = Modifier.fillMaxWidth(),
+                snapValue = safeSnapValue, enabled = enabled
+            )) == true
+        if (nativeRendered) {
+            // COUI owns the complete control, including its thumb and deformation.
+        } else if (backdrop != null && enabled) {
             LiquidSlider(
                 value = { localValue },
                 onPreviewValueChange = ::updatePreview,
@@ -8271,7 +8285,7 @@ private fun SliderWithSnapMarker(
             (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
         Canvas(
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.CenterStart)
                 .fillMaxWidth()
                 .height(36.dp)
         ) {
@@ -8296,6 +8310,10 @@ fun LiquidControlToggle(
     modifier: Modifier = Modifier,
     compact: Boolean = false
 ) {
+    if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSwitchRenderer.current?.invoke(
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeSwitchRequest(
+                checked, onCheckedChange, modifier, enabled, compact
+            )) == true) return
     val alpha = if (enabled) 1f else 0.40f
     if (backdrop != null) {
         LiquidToggle(

@@ -67,6 +67,10 @@ fun LiquidToggle(
     compact: Boolean = false,
     enabled: Boolean = true
 ) {
+    if (com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSwitchRenderer.current?.invoke(
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeSwitchRequest(
+                selected(), onSelect, modifier, enabled, compact
+            )) == true) return
     val isLightTheme = !isSystemInDarkTheme()
     val accentColor =
         if (isLightTheme) Color(0xFF34C759)
