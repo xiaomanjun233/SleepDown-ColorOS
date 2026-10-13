@@ -104,6 +104,10 @@ private class NativeMenuPanel(source: ColorOsNativeUi.Source, context: Context, 
     val view = type.getConstructor(Context::class.java, AttributeSet::class.java)
         .newInstance(context, null) as FrameLayout
     private val radiusMethod = type.getMethod("setRoundCornerRadius", Float::class.javaPrimitiveType)
+    // Settings declares this private; getMethod only sees public methods. Resolve it before
+    // mounting the surface so a capability mismatch cannot throw from the drawing callback.
+    private val updateBlurCorners = type.getDeclaredMethod("updateBlurCornerRadius").apply { isAccessible = true }
+    private val clearSpotLight = type.getMethod("clearSpotLightState")
     private var radius = -1f
     private val location = IntArray(2)
     init {
@@ -127,11 +131,11 @@ private class NativeMenuPanel(source: ColorOsNativeUi.Source, context: Context, 
     fun setRadius(value: Float) {
         if (radius != value) {
             radiusMethod.invoke(view, value)
-            type.getMethod("updateBlurCornerRadius").invoke(view)
+            updateBlurCorners.invoke(view)
             radius = value
         }
     }
-    fun clearTouch() { type.getMethod("clearSpotLightState").invoke(view) }
+    fun clearTouch() { clearSpotLight.invoke(view) }
     fun followTouch(event: MotionEvent) {
         view.getLocationOnScreen(location)
         val local = MotionEvent.obtain(event)
