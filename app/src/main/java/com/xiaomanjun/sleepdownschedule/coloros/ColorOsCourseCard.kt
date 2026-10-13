@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCa
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardMode
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuTouchSource
 import java.lang.reflect.Method
 
 private const val CourseMaterialPreference = "coloros_course_material"
@@ -47,8 +49,8 @@ private const val CourseBlurScale = "blur_radius_scale"
 private const val MaterialEffect = "com.coui.appcompat.COUIMaterialEffect"
 private const val BlurType = "com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType"
 private const val CourseBlurPreset = "TYPE_CONTENT_TRANSPARENT_BUTTON"
-// COUIButton's transparent content preset; its corner params are installed before the stroke.
-private const val CourseStrokePreset = "TYPE_CONTENT_CAPSULE_3"
+// Match the FAB's edge/shadow shader. Corner geometry is supplied separately by the owner.
+private const val CourseStrokePreset = "TYPE_FRAMEWORK_CIRCLE_2"
 private const val CourseLightPreset = "TYPE_OPAQUE_MEDIUM_2"
 private const val StrokeType = "com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType"
 private const val LightDrawable = "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable"
@@ -121,13 +123,22 @@ internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Compo
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, content: @Composable () -> Unit): Boolean {
+    return ColorOsMaterialSurface(request, ColorOsSurfaceStyle.Content, null, content)
+}
+
+internal enum class ColorOsSurfaceStyle { Content, Menu, NeutralMenu }
+
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style: ColorOsSurfaceStyle,
+    touchSource: NativeMenuTouchSource?, content: @Composable () -> Unit): Boolean {
     val native = rememberNativeContext(request.dark) ?: return false
     val source = native.first
     val context = native.second
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    val surface = remember(native) {
-        ColorOsNativeUi.prepare("create a material surface") { NativeMaterialSurface(context, source) }
+    val surface = remember(native, style) {
+        ColorOsNativeUi.prepare("create a material surface") { NativeMaterialSurface(context, source, style) }
     } ?: return false
     val latest = rememberUpdatedState(request)
     val interaction = remember { MutableInteractionSource() }
@@ -135,10 +146,10 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
         val value = latest.value
         shape = value.shapeProvider?.invoke() ?: value.shape
         clip = true
-    }.motionEventSpy { surface.followTouch(it) }
+    }.then(if (touchSource == null) Modifier.motionEventSpy { surface.followTouch(it) } else Modifier)
         .then(if (request.onClick != null) Modifier.clickable(interaction, indication = null,
             role = Role.Button, onClick = request.onClick) else Modifier)) {
-        if (request.renderSurface) AndroidView(factory = { surface }, modifier = Modifier.matchParentSize()
+        if (request.renderSurface) key(surface) { AndroidView(factory = { surface }, modifier = Modifier.matchParentSize()
             .graphicsLayer { alpha = latest.value.surfaceAlpha() }
             .drawWithContent {
                 // Morph geometry is read in drawing, never used as a composition key.
@@ -149,17 +160,22 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
             source.updateTheme(context, request.dark)
             it.updateOutline(request.shapeProvider?.invoke() ?: request.shape, density, direction)
             it.configure(request, density, direction)
-        })
+        }) }
         CompositionLocalProvider(
             com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceActive provides true,
             content = content
         )
     }
+    DisposableEffect(surface, touchSource) {
+        touchSource?.onTouch = surface::followTouch
+        onDispose { touchSource?.onTouch = null; surface.clearTouch() }
+    }
     DisposableEffect(surface) { onDispose { surface.release() } }
     return true
 }
 
-private class NativeMaterialSurface(context: Context, private val source: ColorOsNativeUi.Source) : View(context) {
+private class NativeMaterialSurface(context: Context, private val source: ColorOsNativeUi.Source,
+    private val style: ColorOsSurfaceStyle) : View(context) {
     private val effect = source.load(MaterialEffect)
     private val blurType = source.load(BlurType)
     private val strokeType = source.load(StrokeType)
@@ -212,8 +228,9 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         foreground = light
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
-            .invoke(light, context, type.getField(CourseLightPreset).get(null))
-        source.setFollowLightIntensity(light)
+            .invoke(light, context, type.getField(if (style == ColorOsSurfaceStyle.Content)
+                CourseLightPreset else "TYPE_TRANSLUCENT_LARGE_1").get(null))
+        source.setFollowLightIntensity(light, if (style == ColorOsSurfaceStyle.Content) 2f else 3f)
     }
 
     fun updateOutline(shape: Shape, density: Density, direction: LayoutDirection) {
@@ -292,7 +309,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         // Match COUIButton's native order: geometry first, then the system material presets.
         updateMaterialCorners()
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        if (blur && value.blurRadiusScale != 1f) {
+        if (blur && (style == ColorOsSurfaceStyle.NeutralMenu || value.blurRadiusScale != 1f)) {
             effect.getMethod("setViewBlurEffect", View::class.java,
                 source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
                 .invoke(null, this, source.weatherButtonBlurParams(context, value.blurRadiusScale))
@@ -315,6 +332,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         } finally { local.recycle() }
     }
 
+    fun clearTouch() { light.javaClass.getMethod("cancel").invoke(light) }
+
     private fun clearBlur() {
         val type = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType")
         effect.getMethod("setViewBlurEffect", View::class.java, type).invoke(null, this, type.getField("TYPE_NO_EFFECT").get(null))
@@ -325,7 +344,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         setStroke.invoke(null, this, strokeType.getField("TYPE_NO_EFFECT").get(null))
         setCorners.invoke(null, this, null)
         appliedCorners = null
-        light.javaClass.getMethod("cancel").invoke(light)
+        clearTouch()
     }
 
     fun release() { released = true; clearMaterial() }

@@ -3,23 +3,16 @@ package com.xiaomanjun.sleepdownschedule.coloros
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
-import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
 import android.widget.CheckBox
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -60,90 +53,13 @@ internal fun ColorOsNativeUi.Source.applyNeutralMenuMaterial(context: Context, w
     if (wrapper.isAttachedToWindow) type.getMethod("refreshBlurParams").invoke(builder)
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun ColorOsMenuSurface(request: NativeMenuSurfaceRequest, content: @Composable () -> Unit): Boolean {
-    val value = request.surface
-    val native = rememberNativeContext(value.dark) ?: return false
-    val density = LocalDensity.current
-    val direction = LocalLayoutDirection.current
-    val latest = rememberUpdatedState(request)
-    val binding = remember(native, request.neutral, value.dark) {
-        ColorOsNativeUi.prepare("create embedded native menu panel") {
-            native.first.updateTheme(native.second, value.dark)
-            NativeMenuPanel(native.first, native.second, request.neutral)
-        }
-    } ?: return false
-    Box(value.modifier.graphicsLayer {
-        val surface = latest.value.surface
-        shape = surface.shapeProvider?.invoke() ?: surface.shape
-        clip = true
-    }.then(if (request.touchSource == null) Modifier.motionEventSpy(binding::followTouch) else Modifier)) {
-        if (value.renderSurface) AndroidView(factory = { binding.view }, modifier = Modifier.matchParentSize()
-            .graphicsLayer { alpha = latest.value.surface.surfaceAlpha() }
-            .drawWithContent {
-                val surface = latest.value.surface
-                val shape = surface.shapeProvider?.invoke() ?: surface.shape
-                colorOsMaterialCorners(shape, Size(size.width, size.height), density, direction)?.let {
-                    binding.setRadius(it.radius)
-                }
-                drawContent()
-            })
-        CompositionLocalProvider(LocalNativeMaterialSurfaceActive provides true, content = content)
-    }
-    DisposableEffect(binding, request.touchSource) {
-        request.touchSource?.onTouch = binding::followTouch
-        onDispose { request.touchSource?.onTouch = null; binding.clearTouch() }
-    }
-    return true
-}
-
-/** The same RoundFrameLayout as COUIPopupListWindow, without a second popup/window animator. */
-private class NativeMenuPanel(source: ColorOsNativeUi.Source, context: Context, neutral: Boolean) {
-    private val type = source.load("com.coui.appcompat.poplist.RoundFrameLayout")
-    val view = type.getConstructor(Context::class.java, AttributeSet::class.java)
-        .newInstance(context, null) as FrameLayout
-    private val radiusMethod = type.getMethod("setRoundCornerRadius", Float::class.javaPrimitiveType)
-    // Settings declares this private; getMethod only sees public methods. Resolve it before
-    // mounting the surface so a capability mismatch cannot throw from the drawing callback.
-    private val updateBlurCorners = type.getDeclaredMethod("updateBlurCornerRadius").apply { isAccessible = true }
-    private val clearSpotLight = type.getMethod("clearSpotLightState")
-    private var radius = -1f
-    private val location = IntArray(2)
-    init {
-        // Match COUIPopupListWindow's fallback drawable; initUseBackgroundBlur manages its visibility.
-        val attrs = context.theme.obtainStyledAttributes(intArrayOf(source.resource("couiPopupWindowBackground", "attr")))
-        view.background = try {
-            attrs.getDrawable(0) ?: context.getDrawable(source.resource("coui_popup_window_background", "drawable"))
-        } finally { attrs.recycle() }
-        val level = source.load("com.coui.appcompat.uiutil.UIUtil").getField("ANIM_LEVEL_SUPPORT_BLUR_MIN").get(null)
-        type.getMethod("initUseBackgroundBlur", Boolean::class.javaPrimitiveType,
-            source.load("com.coui.appcompat.uiutil.AnimLevel")).invoke(view, true, level)
-        type.getMethod("setSpotLightTouchEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
-        view.isClickable = false
-        view.isFocusable = false
-        view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        source.bindFollowLightIntensity(view, multiplier = 3f, afterMaterialApplied = {
-            if (neutral) source.applyNeutralMenuMaterial(context, view)
-        })
-        if (neutral) source.applyNeutralMenuMaterial(context, view)
-    }
-    fun setRadius(value: Float) {
-        if (radius != value) {
-            radiusMethod.invoke(view, value)
-            updateBlurCorners.invoke(view)
-            radius = value
-        }
-    }
-    fun clearTouch() { clearSpotLight.invoke(view) }
-    fun followTouch(event: MotionEvent) {
-        view.getLocationOnScreen(location)
-        val local = MotionEvent.obtain(event)
-        try {
-            local.setLocation(event.rawX - location[0], event.rawY - location[1])
-            view.dispatchTouchEvent(local)
-        } finally { local.recycle() }
-    }
+    // RoundFrameLayout uses ViewRootManager/BackgroundBlurDrawable: it samples behind a
+    // separate popup window. Embedded menus must sample preceding content in this window.
+    return ColorOsMaterialSurface(request.surface,
+        if (request.neutral) ColorOsSurfaceStyle.NeutralMenu else ColorOsSurfaceStyle.Menu,
+        request.touchSource, content)
 }
 
 @Composable
@@ -180,12 +96,12 @@ internal fun ColorOsMenuRow(request: NativeMenuRowRequest): Boolean {
     // Popup hosts ask for intrinsic sizes. AndroidView alone cannot answer those queries.
     val policy = remember(binding) { NativeMenuMeasurePolicy(binding.first) }
     Layout(content = {
-        AndroidView(factory = { binding.first }, update = {
+        key(binding.first) { AndroidView(factory = { binding.first }, update = {
             binding.second.isPressed = request.pressed && request.item.enabled
         }, modifier = Modifier.drawWithContent {
             binding.third?.rotation = latest.value.indicatorRotation()
             drawContent()
-        })
+        }) }
     }, modifier = latest.value.modifier, measurePolicy = policy)
     return true
 }
