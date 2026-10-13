@@ -218,29 +218,23 @@ fun QuickScheduleSettingsSheets(
     if (draft != null && draft.scheduleId != openingDraft?.scheduleId) openingDraft = draft
     val opening = openingDraft ?: return
     key(opening.scheduleId) {
-        // The caller places this host in the root popup sibling, outside all page transforms.
-        // Dispose its local registry with the opening; no global popup entry survives a reopen.
-        top.yukonga.miuix.kmp.basic.Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
-        ) {
-            QuickScheduleSettingsSheetSession(
-                initialDraft = opening,
-                draft = draft,
-                config = config,
-                backdrop = backdrop,
-                onDraftChange = onDraftChange,
-                onDismiss = onDismiss,
-                onDismissFinished = {
-                    openingDraft = null
-                    onDismissFinished()
-                },
-                onSave = onSave,
-                suppressDetailedButton = suppressDetailedButton,
-                onDetailedSettings = onDetailedSettings
-            )
-        }
+        // Already a root popup sibling. Render the sheet here without another Scaffold/DialogLayout
+        // registration: its own slide/drag controller owns the full opening and closing lifetime.
+        QuickScheduleSettingsSheetSession(
+            initialDraft = opening,
+            draft = draft,
+            config = config,
+            backdrop = backdrop,
+            onDraftChange = onDraftChange,
+            onDismiss = onDismiss,
+            onDismissFinished = {
+                openingDraft = null
+                onDismissFinished()
+            },
+            onSave = onSave,
+            suppressDetailedButton = suppressDetailedButton,
+            onDetailedSettings = onDetailedSettings
+        )
     }
 }
 
@@ -303,7 +297,7 @@ private fun QuickScheduleSettingsSheetSession(
     top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
         show = draft != null,
         title = "课表设置",
-        renderInRootScaffold = false,
+        renderInPlace = true,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",
@@ -535,7 +529,7 @@ private fun QuickScheduleSettingsSheetSession(
     top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
         show = showDatePicker && draft != null,
         title = "选择日期",
-        renderInRootScaffold = false,
+        renderInPlace = true,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",

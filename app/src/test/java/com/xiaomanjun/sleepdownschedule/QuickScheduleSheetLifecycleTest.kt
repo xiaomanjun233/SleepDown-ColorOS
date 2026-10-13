@@ -46,6 +46,7 @@ class QuickScheduleSheetLifecycleTest {
         var dismissals = 0
         var saves = 0
         val pageScale = mutableStateOf(1f)
+        val unrelatedDialog = mutableStateOf(false)
         compose.setContent {
             MaterialTheme {
                 GlassMiuixSettingsTheme(defaultConfig()) {
@@ -56,12 +57,16 @@ class QuickScheduleSheetLifecycleTest {
                             scaleY = pageScale.value
                         }.glassBackdropProducer(backdrop).background(Color.DarkGray),
                         contentWindowInsets = WindowInsets(0, 0, 0, 0), popupHost = {
+                        top.yukonga.miuix.kmp.utils.MiuixPopupUtils.MiuixPopupHost()
                         QuickScheduleSettingsSheets(draft.value, defaultConfig(), backdrop.takeIf { withGlass },
                             onDraftChange = { draft.value = it },
                             onDismiss = { draft.value = null },
                             onDismissFinished = { dismissals++ },
                             onSave = { _, done -> saves++; done() },
                             onDetailedSettings = { _, _, _ -> })
+                        top.yukonga.miuix.kmp.utils.MiuixPopupUtils.DialogLayout(visible = unrelatedDialog) {
+                            androidx.compose.material3.Text("另一个弹窗")
+                        }
                     }) {}
                 }
             }
@@ -96,6 +101,12 @@ class QuickScheduleSheetLifecycleTest {
             compose.onNodeWithText("课表设置").assertDoesNotExist()
             assertEquals(cycle + 1, saves)
             assertEquals(cycle + 1, dismissals)
+            // A separate dialog may use the shared registry before this sheet is reopened.
+            compose.runOnIdle { unrelatedDialog.value = true }
+            compose.waitForIdle()
+            compose.onNodeWithText("另一个弹窗").assertExists()
+            compose.runOnIdle { unrelatedDialog.value = false }
+            compose.waitForIdle()
         }
     }
 }
