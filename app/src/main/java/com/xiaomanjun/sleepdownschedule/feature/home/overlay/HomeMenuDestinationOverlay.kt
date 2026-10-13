@@ -522,7 +522,16 @@ internal fun HomeMenuDestinationOverlayHost(
             )
             val shape = RoundedRectangle(32.dp)
             val lightGlass = glassUsesLightStyle(state.config)
-            if (dialogBackdrop != null) {
+            val nativeSurface = shown.kind == HomeMenuDestinationKind.AddCourse &&
+                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current?.invoke(
+                    com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+                        modifier = Modifier.fillMaxSize().glassBackdropProducer(surfaceBackdrop),
+                        shape = shape, dark = appUsesDarkTheme(state.config)
+                    )
+                ) {} == true
+            if (nativeSurface) {
+                // Same form and transition shell; only the missing material is supplied here.
+            } else if (dialogBackdrop != null) {
                 LiquidPanel(
                     backdrop = dialogBackdrop,
                     modifier = Modifier.fillMaxSize().glassBackdropProducer(surfaceBackdrop),
@@ -984,7 +993,17 @@ internal fun HomeMenuDestinationOverlayHost(
             val lightGlass = glassUsesLightStyle(state.config)
             // Keep the material composed throughout Preparing and Opening. Mounting drawBackdrop
             // at the same frame the cached form hands off can flash text fields on some GPUs.
-            if (backdrop != null) {
+            val nativeSurface = shown.kind == HomeMenuDestinationKind.AddCourse &&
+                com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current?.invoke(
+                    com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+                        modifier = Modifier.fillMaxSize().glassBackdropProducer(destinationSurfaceBackdrop),
+                        shape = destinationShape, dark = appUsesDarkTheme(state.config),
+                        surfaceAlpha = { frame.value.destinationSurfaceAlpha }
+                    )
+                ) {} == true
+            if (nativeSurface) {
+                // Remains mounted through source handoff, just like the fallback panel below.
+            } else if (backdrop != null) {
                 LiquidPanel(
                     backdrop = backdrop,
                     modifier = Modifier.fillMaxSize().glassBackdropProducer(destinationSurfaceBackdrop).graphicsLayer {
