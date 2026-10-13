@@ -1,8 +1,6 @@
 package com.xiaomanjun.sleepdownschedule.coloros
 
 import android.content.Context
-import android.content.res.ColorStateList
-import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
@@ -11,8 +9,8 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.toArgb
-import androidx.core.content.ContextCompat
 import com.xiaomanjun.sleepdownschedule.app.ui.AddMenuAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuItem
 
 /** Provided only in parallel mode; ordinary mode keeps its current anchored menu. */
 internal val LocalColorOsOverflowMenu = compositionLocalOf<State<List<AddMenuAction>>?> { null }
@@ -21,7 +19,6 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private val host: Context, private val neutral: Boolean, private val foreground: Int?,
     private val onDismiss: (() -> Unit)? = null) {
     private val type = source.load("com.coui.appcompat.poplist.COUIPopupListWindow")
-    private val itemType = source.load("com.coui.appcompat.poplist.PopupListItem")
     private val window = type.getConstructor(Context::class.java).newInstance(context) as PopupWindow
     private var actions: List<AddMenuAction> = emptyList()
     private var pending: (() -> Unit)? = null
@@ -64,28 +61,9 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     }
 
     private fun applyButtonMaterial() {
-        val params = source.weatherButtonBlurParams(context)
-        val base = source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
-        val ui = source.load("com.coui.appcompat.uiutil.UIUtil")
-        fun layer(method: String): Any = ui.getMethod("colorToFloats", Int::class.javaPrimitiveType)
-            .invoke(null, base.getMethod(method, Context::class.java).invoke(params, context))
-        val blend = layer("getColorLayer1")
-        val mix = layer("getColorLayer2")
         for (field in listOf("mMainMenuWrapper", "mSubMenuWrapper")) {
             val wrapper = type.getDeclaredField(field).apply { isAccessible = true }.get(window) as View
-            val builder = wrapper.javaClass.getDeclaredField("mBackgroundBlurBuilder")
-                .apply { isAccessible = true }.get(wrapper)
-            val builderType = builder.javaClass
-            // Keep the native cross-window sampling and animated corners. Mode 4 is COUI's
-            // neutral mix/blend material; both theme branches use the button's color layers.
-            builderType.getMethod("setMode", Int::class.javaPrimitiveType).invoke(builder, 4)
-            // The window's radius is a compositor parameter, not the View RenderEffect sigma.
-            // Keep Weather/COUI's native radius (160); only match the neutral color layers.
-            for (theme in listOf("Light", "Dark")) {
-                builderType.getMethod("setMixColor$theme", FloatArray::class.java).invoke(builder, mix)
-                builderType.getMethod("setBlendColor$theme", FloatArray::class.java).invoke(builder, blend)
-            }
-            if (wrapper.isAttachedToWindow) builderType.getMethod("refreshBlurParams").invoke(builder)
+            source.applyNeutralMenuMaterial(context, wrapper)
         }
         Log.i("SleepDownCOUI", "Overflow neutral colors matched; native window blur retained")
     }
@@ -96,22 +74,10 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
         this.anchor = anchor
         dismissed = false
         actions = entries
-        val constructor = itemType.getConstructor(Drawable::class.java, String::class.java,
-            Boolean::class.javaPrimitiveType)
-        val defaultColor = foreground?.let(ColorStateList::valueOf)
-            ?: source.color(context, "couiColorLabelPrimary")
         val items = entries.map { action ->
-            val icon = action.iconRes?.let { ContextCompat.getDrawable(host, colorOsHomeIconResource(it))?.mutate() }
-            icon?.setTintList(action.iconTint?.takeIf { it.isSpecified }?.toArgb()?.let(ColorStateList::valueOf)
-                ?: defaultColor)
-            constructor.newInstance(icon, action.label, true).also { item ->
-                // Both native ListView and RecyclerView adapters honor these item properties.
-                // Disable their forced tint so recycling cannot erase a destructive icon color.
-                itemType.getMethod("setForceTint", Int::class.javaPrimitiveType).invoke(item, 0)
-                itemType.getMethod("setTitleColorList", ColorStateList::class.java).invoke(item,
-                    action.textTint?.takeIf { it.isSpecified }?.toArgb()?.let(ColorStateList::valueOf)
-                        ?: defaultColor)
-            }
+            source.createMenuItem(context, host, NativeMenuItem(action.label, action.iconRes,
+                foreground = action.textTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground,
+                iconTint = action.iconTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground))
         }
         type.getMethod("setItemList", List::class.java).invoke(window, items)
         type.getMethod("show", View::class.java).invoke(window, anchor)

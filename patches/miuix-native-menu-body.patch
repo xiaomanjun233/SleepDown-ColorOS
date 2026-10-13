@@ -1,0 +1,150 @@
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/ListPopup.kt
+@@ -93,6 +93,7 @@
+     val surfaceModifier: Modifier = Modifier,
+     // Optional material child, measured with the panel. Null retains modifier-only rendering.
+     val surfaceContent: (@Composable (Modifier, (() -> androidx.compose.ui.geometry.RoundRect)?) -> Unit)? = null,
++    val itemContent: (@Composable (DropdownRowContentRequest) -> Boolean)? = null,
+     val backgroundColor: Color? = null,
+     val cornerRadius: Dp = 16.dp,
+     val itemTextStyle: TextStyle? = null,
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/Dropdown.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/basic/Dropdown.kt
+@@ -20,6 +20,9 @@
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.SideEffect
+ import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.interaction.collectIsPressedAsState
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.layout.onGloballyPositioned
+ import androidx.compose.ui.graphics.luminance
+ import androidx.compose.runtime.Immutable
+@@ -157,6 +160,23 @@
+         Color.Black.copy(alpha = 0.10f)
+     } else Color.White.copy(alpha = 0.16f)
+     val role = if (hasSubmenu) Role.Button else Role.RadioButton
++    val customRow = item.rowContent ?: visualStyle.itemContent
++    if (!dialogMode && customRow != null) {
++        val interaction = remember { MutableInteractionSource() }
++        val pressed by interaction.collectIsPressedAsState()
++        val rendered = customRow(DropdownRowContentRequest(
++            item = item,
++            modifier = Modifier.fillMaxWidth()
++                .onGloballyPositioned { slideItem.coordinates = it }
++                .semantics { contentDescription = listOfNotNull(item.text, item.summary).joinToString(", ") }
++                .clickable(interactionSource = interaction, indication = null, enabled = inputEnabled,
++                    role = role, onClick = { currentOnSelectedIndexChange(index) }),
++            enabled = inputEnabled, selected = isSelected,
++            pressed = pressed || slide?.highlighted == slideKey,
++            first = isFirst, last = isLast
++        ))
++        if (rendered) return
++    }
+     Row(
+         verticalAlignment = Alignment.CenterVertically,
+         horizontalArrangement = Arrangement.SpaceBetween,
+@@ -367,6 +387,7 @@
+     val icon: @Composable ((Modifier) -> Unit)? = null,
+     val summary: String? = null,
+     val children: List<DropdownItem>? = null,
++    val rowContent: (@Composable (DropdownRowContentRequest) -> Boolean)? = null,
+ ) {
+     /**
+      * [SpinnerEntry] compatibility
+@@ -381,6 +402,18 @@
+         summary = summary,
+     )
+ }
++
++/** Optional platform body. Positioning, slide selection and menu transitions stay in this host. */
++data class DropdownRowContentRequest(
++    val item: DropdownItem,
++    val modifier: Modifier,
++    val enabled: Boolean,
++    val selected: Boolean,
++    val pressed: Boolean,
++    val first: Boolean = false,
++    val last: Boolean = false,
++    val indicatorRotation: () -> Float = { 0f },
++)
+ 
+ object DropdownDefaults {
+     /** Minimum row height when the dropdown is shown in dialog mode. */
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/MorphHeaderRow.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/MorphHeaderRow.kt
+@@ -4,6 +4,8 @@
+ package top.yukonga.miuix.kmp.layout
+ 
+ import androidx.compose.foundation.Image
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.interaction.collectIsPressedAsState
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+@@ -34,11 +36,14 @@
+ import androidx.compose.ui.graphics.luminance
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.semantics
++import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.util.lerp
+ import top.yukonga.miuix.kmp.basic.DropdownColors
+ import top.yukonga.miuix.kmp.basic.DropdownDefaults
+ import top.yukonga.miuix.kmp.basic.DropdownItem
++import top.yukonga.miuix.kmp.basic.DropdownRowContentRequest
+ import top.yukonga.miuix.kmp.basic.LocalPopupSlideSelection
+ import top.yukonga.miuix.kmp.basic.LocalPopupSlideViewport
+ import top.yukonga.miuix.kmp.basic.LocalListPopupVisualStyle
+@@ -75,6 +80,8 @@
+         BlendModeColorFilter(chevronColor, BlendMode.SrcIn)
+     }
+     val currentOnClick by rememberUpdatedState(onClick)
++    val interaction = remember { MutableInteractionSource() }
++    val pressed by interaction.collectIsPressedAsState()
+     val visualStyle = LocalListPopupVisualStyle.current
+     val slide = LocalPopupSlideSelection.current
+     val viewport = LocalPopupSlideViewport.current
+@@ -92,6 +99,13 @@
+ 
+     Layout(
+         content = {
++            val customRow = triggerItem.rowContent ?: visualStyle.itemContent
++            val rendered = customRow?.invoke(DropdownRowContentRequest(
++                item = triggerItem, modifier = Modifier.fillMaxWidth(), enabled = true,
++                selected = false, pressed = pressed || slide?.highlighted == slideKey,
++                indicatorRotation = { arrowRotation() * 2f }
++            )) == true
++            if (!rendered) {
+             Row(
+                 verticalAlignment = Alignment.CenterVertically,
+                 horizontalArrangement = Arrangement.SpaceBetween,
+@@ -143,15 +157,17 @@
+                     contentDescription = null,
+                 )
+             }
++            }
+         },
+         // selectable + background on the outer Layout so the click target spans the full
+         // interpolated row height (paddings included), not just the inner Row's content.
+         modifier = Modifier
+             .fillMaxWidth()
+             .onGloballyPositioned { slideItem.coordinates = it }
++            .semantics { contentDescription = listOfNotNull(triggerItem.text, triggerItem.summary).joinToString(", ") }
+             .drawBehind {
+                 drawRect(backgroundColorState.value)
+-                if (slide?.highlighted == slideKey) {
++                if (triggerItem.rowContent == null && visualStyle.itemContent == null && slide?.highlighted == slideKey) {
+                     val inset = 8.dp.toPx()
+                     drawRoundRect(highlightColor, topLeft = Offset(inset, inset),
+                         size = Size((size.width - inset * 2).coerceAtLeast(0f), (size.height - inset).coerceAtLeast(0f)),
+@@ -161,6 +177,8 @@
+             .selectable(
+                 selected = true,
+                 enabled = true,
++                interactionSource = interaction,
++                indication = null,
+                 role = Role.Button,
+                 onClick = { currentOnClick() },
+             ),

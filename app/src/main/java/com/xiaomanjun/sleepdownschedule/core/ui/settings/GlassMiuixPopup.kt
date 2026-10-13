@@ -37,8 +37,15 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuRowRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuItem
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuRowRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuSurfaceRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuTouchSource
+import androidx.compose.ui.input.pointer.motionEventSpy
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -65,6 +72,7 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.DropdownRowContentRequest
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.ListPopupVisualStyle
@@ -212,6 +220,7 @@ private fun Modifier.miuixCascadingPopupSurface(
 }
 
 @Composable
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 private fun rememberMiuixListPopupStyle(
     backdrop: Backdrop?,
     config: ScheduleConfigEntity,
@@ -219,8 +228,9 @@ private fun rememberMiuixListPopupStyle(
 ): ListPopupVisualStyle {
     val scope = rememberCoroutineScope()
     val dark = appUsesDarkTheme(config)
-    val nativeMaterial = LocalNativeMaterialSurfaceRenderer.current != null &&
+    val nativeMaterial = LocalNativeMenuSurfaceRenderer.current != null &&
         !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
+    val menuTouch = remember { NativeMenuTouchSource() }
     val radiusCapPx = with(LocalDensity.current) { 90.dp.toPx() }
     val highlight = remember(scope, radiusCapPx, dark) {
         InteractiveHighlight(scope, radius = { minOf(it.minDimension * 0.65f, radiusCapPx) },
@@ -251,7 +261,13 @@ private fun rememberMiuixListPopupStyle(
         blurRadius = 10.dp
     ).then(highlight.modifier),
     surfaceContent = if (nativeMaterial) { modifier, panel ->
-        PopupNativeMaterial(modifier, panel, cornerRadius, backdrop, config)
+        PopupNativeMaterial(modifier, panel, cornerRadius, backdrop, config, menuTouch)
+    } else null,
+    itemContent = if (nativeMaterial) { row ->
+        // Resource-backed business menus supply their own row below; preference choices are text-only.
+        if (row.item.icon != null) false else NativePopupRow(
+            row, NativeMenuItem(title = row.item.text, description = row.item.summary,
+                checkable = row.item.children.isNullOrEmpty(), foreground = sleepDownPanelForegroundColor(config).toArgb()), dark)
     } else null,
     backgroundColor = Color.Transparent,
     cornerRadius = cornerRadius,
@@ -270,15 +286,15 @@ private fun rememberMiuixListPopupStyle(
     shadowElevation = if (dark) 16.dp else 24.dp,
     ambientShadowColor = Color.Black.copy(alpha = if (dark) 0.125f else 0.22f),
     spotShadowColor = Color.Black.copy(alpha = 0.125f),
-    interactionModifier = interaction,
-    suspendedInteractionModifier = visualInteraction
+    interactionModifier = if (nativeMaterial) Modifier.motionEventSpy(menuTouch::dispatch) else interaction,
+    suspendedInteractionModifier = if (nativeMaterial) Modifier else visualInteraction
     )
 }
 
 /** Native View occupies the moving panel, rather than the union/shadow allocation canvas. */
 @Composable
 private fun PopupNativeMaterial(modifier: Modifier, panel: (() -> RoundRect)?, cornerRadius: Dp,
-    backdrop: Backdrop?, config: ScheduleConfigEntity) {
+    backdrop: Backdrop?, config: ScheduleConfigEntity, menuTouch: NativeMenuTouchSource) {
     val shape = RoundedRectangle(cornerRadius)
     val placed = if (panel == null) modifier else modifier.layout { measurable, constraints ->
         val rect = panel()
@@ -288,14 +304,14 @@ private fun PopupNativeMaterial(modifier: Modifier, panel: (() -> RoundRect)?, c
             child.place(rect.left.roundToInt(), rect.top.roundToInt())
         }
     }
-    val rendered = LocalNativeMaterialSurfaceRenderer.current?.invoke(NativeMaterialSurfaceRequest(
+    val rendered = LocalNativeMenuSurfaceRenderer.current?.invoke(NativeMenuSurfaceRequest(NativeMaterialSurfaceRequest(
         modifier = placed, shape = shape, dark = appUsesDarkTheme(config),
         shapeProvider = panel?.let { bounds -> {
             val rect = bounds()
             RoundedCornerShape(CornerSize(rect.topLeftCornerRadius.x), CornerSize(rect.topRightCornerRadius.x),
                 CornerSize(rect.bottomRightCornerRadius.x), CornerSize(rect.bottomLeftCornerRadius.x))
         } }
-    )) {} == true
+    ), touchSource = menuTouch)) {} == true
     if (!rendered) Box(placed.miuixCascadingPopupSurface(backdrop, config, 10.dp))
 }
 
@@ -395,7 +411,22 @@ internal fun SleepDownLiquidDropdownPreference(
     }
 }
 
-private fun SleepDownLiquidMenuItem.asMiuixDropdownItem(iconColor: Color): DropdownItem = DropdownItem(
+@Composable
+private fun NativePopupRow(row: DropdownRowContentRequest, item: NativeMenuItem, dark: Boolean): Boolean =
+    LocalNativeMenuRowRenderer.current?.invoke(NativeMenuRowRequest(
+        item = item.copy(enabled = row.enabled, selected = row.selected), dark = dark,
+        modifier = row.modifier, pressed = row.pressed, first = row.first, last = row.last,
+        indicatorRotation = row.indicatorRotation
+    )) == true
+
+private fun SleepDownLiquidMenuItem.asNativeMenuItem(iconColor: Color): NativeMenuItem = NativeMenuItem(
+    title = text, iconRes = iconRes, description = summary, enabled = enabled,
+    selected = selected || accent, checkable = selected || accent,
+    foreground = iconColor.toArgb(), iconTint = iconColor.toArgb(),
+    children = children.map { it.asNativeMenuItem(iconColor) }
+)
+
+private fun SleepDownLiquidMenuItem.asMiuixDropdownItem(iconColor: Color, dark: Boolean, nativeRows: Boolean): DropdownItem = DropdownItem(
     text = text,
     enabled = enabled,
     selected = selected || accent,
@@ -411,7 +442,8 @@ private fun SleepDownLiquidMenuItem.asMiuixDropdownItem(iconColor: Color): Dropd
         }
     },
     summary = summary,
-    children = children.takeIf { it.isNotEmpty() }?.map { it.asMiuixDropdownItem(iconColor) }
+    children = children.takeIf { it.isNotEmpty() }?.map { it.asMiuixDropdownItem(iconColor, dark, nativeRows) },
+    rowContent = if (nativeRows) { row -> NativePopupRow(row, asNativeMenuItem(iconColor), dark) } else null
 )
 
 @Composable
@@ -443,8 +475,11 @@ internal fun SleepDownLiquidCascadingPopup(
         primaryPopupBackdrop
     }
     val popupContentColor = contentColor ?: sleepDownPanelForegroundColor(config)
-    val entry = remember(items, popupContentColor) {
-        DropdownEntry(items.map { it.asMiuixDropdownItem(popupContentColor) })
+    val dark = appUsesDarkTheme(config)
+    val nativeRows = LocalNativeMenuRowRenderer.current != null &&
+        !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
+    val entry = remember(items, popupContentColor, dark, nativeRows) {
+        DropdownEntry(items.map { it.asMiuixDropdownItem(popupContentColor, dark, nativeRows) })
     }
     val basePrimaryVisualStyle = rememberMiuixListPopupStyle(
         backdrop = completeUnderlayBackdrop,

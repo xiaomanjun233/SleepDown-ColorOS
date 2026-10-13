@@ -1,0 +1,38 @@
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/overlay/OverlayBottomSheet.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/overlay/OverlayBottomSheet.kt
+@@ -5,6 +5,8 @@
+ 
+ import androidx.compose.animation.EnterTransition
+ import androidx.compose.animation.ExitTransition
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+@@ -65,6 +67,8 @@
+     allowDismiss: Boolean = true,
+     enableNestedScroll: Boolean = true,
+     renderInRootScaffold: Boolean = true,
++    // For callers already in the root overlay sibling: avoid a second dialog registry/transition.
++    renderInPlace: Boolean = false,
+     content: @Composable () -> Unit,
+ ) {
+     BottomSheetContentLayout(
+@@ -76,6 +80,9 @@
+         insideMargin = insideMargin,
+         dragHandleColor = dragHandleColor,
+         popupHost = { visible, hostContent ->
++            if (renderInPlace) {
++                if (visible) Box(Modifier.fillMaxSize()) { hostContent() }
++            } else {
+             val visibleState = remember { mutableStateOf(false) }
+             visibleState.value = visible
+             DialogLayout(
+@@ -87,6 +94,7 @@
+                 renderInRootScaffold = renderInRootScaffold,
+             ) {
+                 hostContent()
++            }
+             }
+         },
+         modifier = modifier,

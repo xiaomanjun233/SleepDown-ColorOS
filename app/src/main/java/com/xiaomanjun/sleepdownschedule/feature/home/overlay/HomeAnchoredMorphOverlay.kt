@@ -2,6 +2,13 @@ package com.xiaomanjun.sleepdownschedule.feature.home.overlay
 
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.toArgb
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuRowRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuSurfaceRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuRowRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuItem
 import androidx.compose.ui.unit.Dp
 import com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation
 import com.xiaomanjun.sleepdownschedule.glass.GlassMotionExperiments
@@ -1461,8 +1468,9 @@ internal fun HomeAnchoredMorphOverlayHost(
             else (if (sourceLightGlass) HomeLightGlassSurfaceColor else Color(0xFF121212))
                 .copy(alpha = homeChromeGlassSurfaceAlpha(sourceLightGlass))
         if (movingDroplet) {
-            val nativeRenderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+            val nativeRenderer = LocalNativeMenuSurfaceRenderer.current
             val nativeMovingSurface = nativeRenderer?.invoke(
+                NativeMenuSurfaceRequest(
                 com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
                     modifier = Modifier.offset {
                         val rect = geometry.value.rect
@@ -1485,7 +1493,7 @@ internal fun HomeAnchoredMorphOverlayHost(
                     shape = settledSurfaceShape,
                     shapeProvider = { RoundedRectangle(with(density) { geometry.value.cornerRadiusPx.toDp() }) },
                     dark = LocalColorOsHomeChromeStyle.current?.dark ?: !glassUsesLightStyle(config)
-                )
+                ), neutral = LocalColorOsHomeChromeStyle.current?.weatherMaterial == true)
             ) {} == true
             if (!nativeMovingSurface) {
             val margin = with(density) { 18.dp.toPx() }
@@ -2774,21 +2782,34 @@ internal fun HomeAddMenuMorphPanel(
                     verticalArrangement = Arrangement.spacedBy(HomeAddMenuActionGapDp.dp)
                 ) {
                     actions.forEachIndexed { index, action ->
+                        val itemModifier = Modifier.semantics {
+                            contentDescription = action.label
+                            onClick(action.label) {
+                                if (interactive) action.onClick()
+                                interactive
+                            }
+                        }
+                        val highlighted = externalHighlightedIndex == index || highlightedIndex == index
+                        val nativeRow = (action.imageVector == null || action.iconRes != null) &&
+                            LocalNativeMenuRowRenderer.current?.invoke(NativeMenuRowRequest(
+                                item = NativeMenuItem(title = action.label, iconRes = action.iconRes,
+                                    foreground = (action.textTint ?: textColor).toArgb(),
+                                    iconTint = (action.iconTint ?: textColor).toArgb()),
+                                dark = homeStyle?.dark ?: !lightGlass,
+                                modifier = itemModifier.fillMaxWidth().height(actionItemHeight),
+                                pressed = highlighted
+                            )) == true
+                        if (!nativeRow) {
                         AddMenuLiquidItem(
                             config = menuConfig,
                             action = action,
                             itemHeight = actionItemHeight,
                             compactCapsule = compactActions,
                             foreground = textColor,
-                            modifier = if (!showModeSwitch) Modifier.semantics(mergeDescendants = true) {
-                                onClick(action.label) {
-                                    if (interactive) action.onClick()
-                                    interactive
-                                }
-                            } else Modifier,
-                            highlighted = externalHighlightedIndex == index ||
-                                highlightedIndex == index
+                            modifier = if (!showModeSwitch) itemModifier else Modifier,
+                            highlighted = highlighted
                         )
+                        }
                     }
                 }
             }
@@ -2810,12 +2831,13 @@ internal fun HomeAddMenuMorphPanel(
                     drawContent()
                     onSurfaceDrawn()
                 }
-            val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+            val nativeSurface = LocalNativeMenuSurfaceRenderer.current
             val nativeRendered = nativeSurface?.invoke(
+                NativeMenuSurfaceRequest(
                 com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
                     modifier = surfaceModifier, shape = shape,
                     dark = homeStyle?.dark ?: !lightGlass, renderSurface = !externalSurface
-                )
+                ), neutral = homeStyle?.weatherMaterial == true)
             ) { MenuContent() } == true
             if (nativeRendered) {
                 // Input and row animation remain with the existing menu host.
