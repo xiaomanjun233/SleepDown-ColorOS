@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.luminance
@@ -22,8 +23,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.*
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 @Composable
 internal fun ColorOsSlider(request: NativeSliderRequest): Boolean {
@@ -38,10 +37,10 @@ internal fun ColorOsSlider(request: NativeSliderRequest): Boolean {
         }
     } ?: return false
     val accent = LocalColorOsButtonAccent.current ?: MaterialTheme.colorScheme.primary.toArgb()
-    AndroidView(factory = { binding.view }, modifier = request.modifier.fillMaxWidth().height(48.dp), update = {
+    key(binding.view) { AndroidView(factory = { binding.view }, modifier = request.modifier.fillMaxWidth().height(48.dp), update = {
         it.isEnabled = request.enabled
         binding.sync(request.value(), accent)
-    })
+    }) }
     DisposableEffect(binding) { onDispose { binding.dispose() } }
     return true
 }
@@ -56,22 +55,17 @@ private class NativeSliderBinding(source: ColorOsNativeUi.Source, context: Conte
     private val getProgress = type.getMethod("getProgress")
     private val setProgressColor = type.getMethod("setProgressColor", ColorStateList::class.java)
     private val marker = NativeSliderMarker(view, request)
+    private val progressAdapter = NativeSliderProgressAdapter(request, session) { setProgress.invoke(view, it) }
     private var cancelled = false
     private var color: Int? = null
     init {
-        type.getMethod("setMax", Int::class.javaPrimitiveType).invoke(view, 10000)
+        type.getMethod("setMax", Int::class.javaPrimitiveType).invoke(view, NativeSliderProgressAdapter.MaxProgress)
         view.overlay.add(marker)
         view.addOnLayoutChangeListener(marker)
         setListener.invoke(view, source.listener(listenerType.name) { name, args ->
             when (name) {
                 "onStartTrackingTouch" -> session.start()
-                "onProgressChanged" -> if (args?.getOrNull(2) == true) {
-                    val range = request().range
-                    var value = range.start + ((args[1] as Int) / 10000f) * (range.endInclusive - range.start)
-                    val snap = request().snapValue
-                    if (snap != null && abs(value - snap) < (range.endInclusive - range.start) * 0.015f) value = snap
-                    session.change(value)
-                }
+                "onProgressChanged" -> if (args != null) progressAdapter.changed(args[1] as Int, args[2] == true)
                 "onStopTrackingTouch" -> session.finish(cancelled)
             }
             null
@@ -89,9 +83,7 @@ private class NativeSliderBinding(source: ColorOsNativeUi.Source, context: Conte
     fun sync(value: Float, accent: Int) {
         marker.invalidateSelf()
         if (!session.tracking) {
-            val range = request().range
-            val span = range.endInclusive - range.start
-            val progress = if (span > 0f) ((value - range.start) / span * 10000).roundToInt().coerceIn(0, 10000) else 0
+            val progress = progressAdapter.progressFor(value)
             if (getProgress.invoke(view) != progress) setProgress.invoke(view, progress)
         }
         if (color != accent) {
@@ -150,8 +142,8 @@ internal fun ColorOsSwitch(request: NativeSwitchRequest): Boolean {
             NativeSwitchBinding(native.first, native.second) { latest.value }
         }
     } ?: return false
-    AndroidView(factory = { binding.view }, modifier = request.modifier,
-        update = { binding.sync(request, accent) })
+    key(binding.view) { AndroidView(factory = { binding.view }, modifier = request.modifier,
+        update = { binding.sync(request, accent) }) }
     DisposableEffect(binding) { onDispose { binding.view.setOnCheckedChangeListener(null) } }
     return true
 }
@@ -219,11 +211,11 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             Triple(type, view, listener)
         }
     } ?: return false
-    AndroidView(factory = { binding.second }, modifier = request.modifier.height(42.dp), update = {
+    key(binding.second) { AndroidView(factory = { binding.second }, modifier = request.modifier.height(42.dp), update = {
         val selected = request.selected.coerceIn(request.labels.indices)
         if (binding.first.getMethod("getSelectedSegmentPosition").invoke(it) != selected)
             binding.first.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(it, selected)
-    })
+    }) }
     DisposableEffect(binding) { onDispose {
         binding.first.getMethod("setOnSegmentSelectedListener", binding.third).invoke(binding.second, null)
     } }

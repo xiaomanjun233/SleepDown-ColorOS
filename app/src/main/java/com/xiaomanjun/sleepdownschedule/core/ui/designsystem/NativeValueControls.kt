@@ -3,6 +3,8 @@ package com.xiaomanjun.sleepdownschedule.core.ui.designsystem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 internal data class NativeSliderRequest(
     val value: () -> Float, val range: ClosedFloatingPointRange<Float>,
@@ -24,6 +26,36 @@ internal data class NativeSegmentRequest(
 internal val LocalNativeSliderRenderer = compositionLocalOf<(@Composable (NativeSliderRequest) -> Boolean)?> { null }
 internal val LocalNativeSwitchRenderer = compositionLocalOf<(@Composable (NativeSwitchRequest) -> Boolean)?> { null }
 internal val LocalNativeSegmentRenderer = compositionLocalOf<(@Composable (NativeSegmentRequest) -> Boolean)?> { null }
+
+/** Keep the native thumb and preview on the same value; ignore setProgress callback echoes. */
+internal class NativeSliderProgressAdapter(
+    private val request: () -> NativeSliderRequest,
+    private val session: NativeSliderSession,
+    private val setProgress: (Int) -> Unit
+) {
+    fun progressFor(value: Float): Int {
+        val range = request().range
+        val span = range.endInclusive - range.start
+        return if (span > 0f) ((value - range.start) / span * MaxProgress).roundToInt().coerceIn(0, MaxProgress) else 0
+    }
+
+    fun changed(progress: Int, fromUser: Boolean) {
+        if (!fromUser) return
+        val current = request()
+        val span = current.range.endInclusive - current.range.start
+        var value = current.range.start + progress.coerceIn(0, MaxProgress) / MaxProgress.toFloat() * span
+        val snap = current.snapValue
+        // Keyboard/accessibility steps must be able to leave the default one step at a time.
+        if (session.tracking && snap != null && snap in current.range && abs(value - snap) < span * 0.015f) {
+            value = snap
+            val target = progressFor(snap)
+            if (target != progress) setProgress(target)
+        }
+        session.change(value)
+    }
+
+    companion object { const val MaxProgress = 10000 }
+}
 
 /** Native touch callbacks retain the existing preview/commit/cancel transaction. */
 internal class NativeSliderSession(private val request: () -> NativeSliderRequest) {

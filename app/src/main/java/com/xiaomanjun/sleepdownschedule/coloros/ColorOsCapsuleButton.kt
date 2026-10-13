@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -121,7 +122,11 @@ internal fun NativeCapsuleButtonLayout(
                 true
             } else false
         }.focusable(request.enabled), propagateMinConstraints = true) {
-        AndroidView(factory = { button }, modifier = Modifier.matchParentSize(), update = update)
+        // A PRIMARY/SECONDARY change creates a new native button. AndroidView's factory runs
+        // once per identity; retaining the old holder leaves its disposed listeners on screen.
+        key(button) {
+            AndroidView(factory = { button }, modifier = Modifier.matchParentSize(), update = update)
+        }
         // Read motion only in the layer block: native animation updates transform properties,
         // without recomposing or recording the content through a foreign ViewOverlay canvas.
         Row(Modifier.graphicsLayer { motion.applyTo(this) }

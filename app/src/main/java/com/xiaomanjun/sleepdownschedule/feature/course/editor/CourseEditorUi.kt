@@ -1742,29 +1742,14 @@ internal fun CourseEditorPickerOverlay(
             )
         ) {
             if (periodRequest != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    QuickSheetLiquidAction(
-                        label = "按节次",
-                        enabled = true,
-                        backdrop = backdrop,
-                        config = config,
-                        primary = !customTimeMode,
-                        modifier = Modifier.weight(1f),
-                        height = 42.dp
-                    ) {
-                        customTimeMode = false
-                        timeError = null
-                    }
-                    QuickSheetLiquidAction(
-                        label = "自定义时间",
-                        enabled = true,
-                        backdrop = backdrop,
-                        config = config,
-                        primary = customTimeMode,
-                        modifier = Modifier.weight(1f),
-                        height = 42.dp
-                    ) {
-                        customTimeMode = true
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    com.xiaomanjun.sleepdownschedule.feature.settings.LiquidOptionTabs(
+                        selectedIndex = if (customTimeMode) 1 else 0,
+                        labels = listOf("按节次", "自定义时间"),
+                        backdrop = backdrop, config = config, width = maxWidth,
+                        followAppTheme = true
+                    ) { index ->
+                        customTimeMode = index == 1
                         timeError = null
                     }
                 }

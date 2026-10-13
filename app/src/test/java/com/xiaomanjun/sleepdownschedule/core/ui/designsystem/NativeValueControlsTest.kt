@@ -5,6 +5,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeValueControlsTest {
+    @Test fun dragSnapsNativeThumbAndPreviewThenCanLeaveTheSnapZone() {
+        val previews = mutableListOf<Float>()
+        val commits = mutableListOf<Float>()
+        val nativeUpdates = mutableListOf<Int>()
+        val request = NativeSliderRequest({ 30f }, 0f..100f, previews::add, {}, commits::add,
+            Modifier, snapValue = 50f)
+        val session = NativeSliderSession { request }
+        lateinit var adapter: NativeSliderProgressAdapter
+        adapter = NativeSliderProgressAdapter({ request }, session) {
+            nativeUpdates += it
+            adapter.changed(it, false) // COUI setProgress synchronously echoes a programmatic change.
+        }
+        session.start()
+        adapter.changed(4910, true)
+        assertEquals(listOf(5000), nativeUpdates)
+        assertEquals(listOf(50f), previews)
+        adapter.changed(5400, true)
+        assertEquals(54f, previews.last(), 0.0001f)
+        adapter.changed(5080, true)
+        session.finish(false)
+        assertEquals(listOf(50f), commits)
+        assertEquals(listOf(5000, 5000), nativeUpdates)
+    }
+
+    @Test fun snapCancellationRestoresPreviewAndKeyboardCanStepAway() {
+        val previews = mutableListOf<Float>()
+        val commits = mutableListOf<Float>()
+        val request = NativeSliderRequest({ 30f }, 0f..100f, previews::add, {}, commits::add,
+            Modifier, snapValue = 50f)
+        val session = NativeSliderSession { request }
+        val adapter = NativeSliderProgressAdapter({ request }, session) {}
+        session.start()
+        adapter.changed(5050, true)
+        session.finish(true)
+        assertEquals(listOf(50f, 30f), previews)
+        assertTrue(commits.isEmpty())
+        adapter.changed(5100, true)
+        assertEquals(51f, commits.single(), 0.0001f)
+    }
+
     @Test fun dragPreviewsThenCommitsExactlyOnceBeforePreviewCloses() {
         val events = mutableListOf<String>()
         val request = NativeSliderRequest({ 30f }, 0f..100f,

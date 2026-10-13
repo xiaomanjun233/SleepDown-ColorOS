@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCapsuleButtonRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +36,40 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ColorOsCapsuleMotionTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun replacementButtonIsAttachedAndReceivesClicksInBothDirections() {
+        var firstClicks = 0
+        var secondClicks = 0
+        val first = TextView(compose.activity).apply { setOnClickListener { firstClicks++ } }
+        val second = TextView(compose.activity).apply { setOnClickListener { secondClicks++ } }
+        val selected = mutableStateOf(false)
+        val motion = ColorOsCapsuleMotion()
+        compose.setContent {
+            NativeCapsuleButtonLayout(
+                NativeCapsuleButtonRequest({}, Modifier.width(240.dp), 48.dp,
+                    PaddingValues(horizontal = 16.dp), dark = false),
+                if (selected.value) second else first, motion, update = {}
+            ) { BasicText("Switch mode") }
+        }
+        compose.runOnIdle {
+            assertTrue(first.isAttachedToWindow)
+            first.performClick()
+            selected.value = true
+        }
+        compose.runOnIdle {
+            assertNull(first.parent)
+            assertTrue(second.isAttachedToWindow)
+            second.performClick()
+            selected.value = false
+        }
+        compose.runOnIdle {
+            assertNull(second.parent)
+            assertTrue(first.isAttachedToWindow)
+            first.performClick()
+            assertEquals(2, firstClicks)
+            assertEquals(1, secondClicks)
+        }
+    }
 
     @Test fun contentRemainsLiveAndFollowsNativeMotionWithoutRecomposition() {
         val motion = ColorOsCapsuleMotion()
