@@ -8203,24 +8203,24 @@ fun LiquidControlSlider(
         }
     }
 
-    SliderWithSnapMarker(
-        modifier = modifier,
-        snapValue = safeSnapValue,
-        valueRange = valueRange
-    ) {
-        val nativeSlider = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSliderRenderer.current
-        val nativeRendered = nativeSlider?.invoke(
+    val nativeSlider = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSliderRenderer.current
+    if (nativeSlider?.invoke(
             com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeSliderRequest(
                 value = { localValue }, range = valueRange, onPreview = ::updatePreview,
                 onPreviewMode = { active ->
                     previewModeActive = active
                     onSliderTouchActiveChange(active)
-                }, onCommit = ::commit, modifier = Modifier.fillMaxWidth(),
+                }, onCommit = ::commit, modifier = modifier,
                 snapValue = safeSnapValue, enabled = enabled
-            )) == true
-        if (nativeRendered) {
-            // COUI owns the complete control, including its thumb and deformation.
-        } else if (backdrop != null && enabled) {
+            )) == true) return
+
+    // Native renderers own marker geometry as well as the track and thumb.
+    SliderWithSnapMarker(
+        modifier = modifier,
+        snapValue = safeSnapValue,
+        valueRange = valueRange
+    ) {
+        if (backdrop != null && enabled) {
             LiquidSlider(
                 value = { localValue },
                 onPreviewValueChange = ::updatePreview,
