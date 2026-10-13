@@ -10,8 +10,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.GlassMiuixSettingsTheme
 import com.xiaomanjun.sleepdownschedule.feature.schedule.picker.QuickScheduleDraft
@@ -42,31 +45,43 @@ class QuickScheduleSheetLifecycleTest {
         val draft = mutableStateOf<QuickScheduleDraft?>(null)
         var dismissals = 0
         var saves = 0
+        val pageScale = mutableStateOf(1f)
         compose.setContent {
             MaterialTheme {
                 GlassMiuixSettingsTheme(defaultConfig()) {
                     val backdrop = rememberGlassLayerBackdrop(GlassBackdropDomain.Content, "sheet-test")
-                    Scaffold(Modifier.fillMaxSize(),
-                        underlayModifier = Modifier.fillMaxSize().glassBackdropProducer(backdrop).background(Color.DarkGray),
-                        contentWindowInsets = WindowInsets(0, 0, 0, 0)) {
+                    Scaffold(Modifier.fillMaxSize().testTag("sheet-root"),
+                        underlayModifier = Modifier.fillMaxSize().graphicsLayer {
+                            scaleX = pageScale.value
+                            scaleY = pageScale.value
+                        }.glassBackdropProducer(backdrop).background(Color.DarkGray),
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0), popupHost = {
                         QuickScheduleSettingsSheets(draft.value, defaultConfig(), backdrop.takeIf { withGlass },
                             onDraftChange = { draft.value = it },
                             onDismiss = { draft.value = null },
                             onDismissFinished = { dismissals++ },
                             onSave = { _, done -> saves++; done() },
                             onDetailedSettings = { _, _, _ -> })
-                    }
+                    }) {}
                 }
             }
         }
         var originalTitle: Rect? = null
         var originalDetail: Rect? = null
         repeat(3) { cycle ->
-            compose.runOnIdle { draft.value = QuickScheduleDraft(1, 20, 1, true, false, "2026-09-01") }
+            compose.runOnIdle {
+                pageScale.value = if (cycle == 1) 0.8f else 1f
+                draft.value = QuickScheduleDraft(1, 20, 1, true, false, "2026-09-01")
+            }
             compose.waitForIdle()
             compose.onNodeWithText("总周数").assertExists()
             val title = compose.onNodeWithText("课表设置").fetchSemanticsNode().boundsInRoot
             val detail = compose.onNodeWithText("详细设置").fetchSemanticsNode().boundsInRoot
+            val panel = compose.onNodeWithTag("quick_schedule_sheet").fetchSemanticsNode().boundsInRoot
+            val root = compose.onNodeWithTag("sheet-root").fetchSemanticsNode().boundsInRoot
+            assertEquals("Reopen $cycle left edge", root.left, panel.left, 1f)
+            assertEquals("Reopen $cycle right edge", root.right, panel.right, 1f)
+            assertEquals("Reopen $cycle bottom edge", root.bottom, panel.bottom, 1f)
             if (cycle == 0) { originalTitle = title; originalDetail = detail }
             assertEquals("Reopen $cycle title", originalTitle, title)
             assertEquals("Reopen $cycle bottom action", originalDetail, detail)

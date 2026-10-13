@@ -1,4 +1,6 @@
 package com.xiaomanjun.sleepdownschedule.feature.schedule.picker
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 
 import com.xiaomanjun.sleepdownschedule.app.ui.*
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.*
@@ -216,21 +218,29 @@ fun QuickScheduleSettingsSheets(
     if (draft != null && draft.scheduleId != openingDraft?.scheduleId) openingDraft = draft
     val opening = openingDraft ?: return
     key(opening.scheduleId) {
-        QuickScheduleSettingsSheetSession(
-            initialDraft = opening,
-            draft = draft,
-            config = config,
-            backdrop = backdrop,
-            onDraftChange = onDraftChange,
-            onDismiss = onDismiss,
-            onDismissFinished = {
-                openingDraft = null
-                onDismissFinished()
-            },
-            onSave = onSave,
-            suppressDetailedButton = suppressDetailedButton,
-            onDetailedSettings = onDetailedSettings
-        )
+        // The caller places this host in the root popup sibling, outside all page transforms.
+        // Dispose its local registry with the opening; no global popup entry survives a reopen.
+        top.yukonga.miuix.kmp.basic.Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+        ) {
+            QuickScheduleSettingsSheetSession(
+                initialDraft = opening,
+                draft = draft,
+                config = config,
+                backdrop = backdrop,
+                onDraftChange = onDraftChange,
+                onDismiss = onDismiss,
+                onDismissFinished = {
+                    openingDraft = null
+                    onDismissFinished()
+                },
+                onSave = onSave,
+                suppressDetailedButton = suppressDetailedButton,
+                onDetailedSettings = onDetailedSettings
+            )
+        }
     }
 }
 
@@ -293,6 +303,7 @@ private fun QuickScheduleSettingsSheetSession(
     top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
         show = draft != null,
         title = "课表设置",
+        renderInRootScaffold = false,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",
@@ -316,7 +327,7 @@ private fun QuickScheduleSettingsSheetSession(
         onDismissFinished = onDismissFinished,
         allowDismiss = !saving,
         backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 590.dp),
+        modifier = Modifier.heightIn(max = 590.dp).semantics { testTag = "quick_schedule_sheet" },
         surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
     ) {
         retainedDraft.let { value ->
@@ -524,6 +535,7 @@ private fun QuickScheduleSettingsSheetSession(
     top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
         show = showDatePicker && draft != null,
         title = "选择日期",
+        renderInRootScaffold = false,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",
