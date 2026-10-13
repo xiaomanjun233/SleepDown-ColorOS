@@ -1433,7 +1433,7 @@ private fun AiEduAttachmentMorphOverlay(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(request.attachment.title, modifier = Modifier.weight(1f), color = textColor, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text("完成", modifier = Modifier.clickable(onClick = ::dismiss).padding(12.dp), color = Color(0xFF0A84FF), fontWeight = FontWeight.SemiBold)
+                    Text("完成", modifier = Modifier.clickable(onClick = ::dismiss).padding(12.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -1618,8 +1618,8 @@ private fun AiEduConversationComposer(
                         backdrop = backdrop,
                         modifier = Modifier.size(40.dp),
                         height = 40.dp,
-                        surfaceColor = Color(0xFF0A84FF).copy(alpha = 0.88f),
-                        tint = Color(0xFF0A84FF),
+                        surfaceColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.88f),
+                        tint = MaterialTheme.colorScheme.primary,
                         contentPadding = PaddingValues(0.dp),
                         blurRadius = 4.dp,
                         lensHeight = 14.dp,
@@ -1632,7 +1632,7 @@ private fun AiEduConversationComposer(
                     }
                 } else {
                     Box(
-                        Modifier.size(40.dp).clip(CircleShape).background(Color(0xFF0A84FF)).clickable {
+                        Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable {
                             if (sending && canInterrupt && value.isBlank()) onStop() else onSend()
                         },
                         contentAlignment = Alignment.Center

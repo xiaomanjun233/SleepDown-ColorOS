@@ -233,7 +233,7 @@ internal fun WallpaperEditorOverlay(
             Spacer(Modifier.weight(1f))
             Text("调整壁纸", color = Color.White, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.weight(1f))
-            WallpaperHeaderButton(if (applying) "保存中" else "完成", backdrop, Color(0xFF0A84FF).copy(alpha = 0.84f), !applying, ::save)
+            WallpaperHeaderButton(if (applying) "保存中" else "完成", backdrop, MaterialTheme.colorScheme.primary.copy(alpha = 0.84f), !applying, ::save)
         }
 
         Column(
@@ -293,7 +293,7 @@ private fun WallpaperRoundOrientationButton(
     backdrop: Backdrop?,
     onClick: () -> Unit
 ) {
-    val surface = if (selected) Color(0xFF0A84FF).copy(alpha = 0.86f) else Color(0xFF4A4A4F).copy(alpha = 0.76f)
+    val surface = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.86f) else Color(0xFF4A4A4F).copy(alpha = 0.76f)
     val icon: @Composable () -> Unit = {
         Canvas(Modifier.size(22.dp)) {
             val width = if (portrait) size.width * 0.52f else size.width * 0.84f

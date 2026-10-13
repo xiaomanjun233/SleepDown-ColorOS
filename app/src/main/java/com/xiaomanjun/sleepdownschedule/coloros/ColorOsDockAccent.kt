@@ -3,6 +3,7 @@ package com.xiaomanjun.sleepdownschedule.coloros
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
@@ -11,14 +12,53 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.ColorUtils
+import androidx.core.net.toUri
 import androidx.palette.graphics.Palette
-import com.xiaomanjun.sleepdownschedule.core.performance.HomeWallpaperImages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.xiaomanjun.sleepdownschedule.model.ScheduleConfigEntity
+import com.xiaomanjun.sleepdownschedule.model.DefaultWallpaperStyle
+import com.xiaomanjun.sleepdownschedule.core.wallpaper.loadSampledBitmap
+import com.xiaomanjun.sleepdownschedule.R
 
 /** Only home dock consumers use this accent; toolbar/search spotlights keep their native color. */
 internal val LocalColorOsDockAccent = compositionLocalOf<Int?> { null }
 internal val LocalColorOsButtonAccent = compositionLocalOf<Int?> { null }
+
+private val themeAccentCache = android.util.LruCache<String, Int>(6)
+private val themeAccentMutex = Mutex()
+private const val DefaultThemeAccent = 0xFF007AFF.toInt()
+
+/** One small source decode per wallpaper; all Activities and native dialogs share the result. */
+@Composable
+internal fun rememberColorOsThemeAccent(config: ScheduleConfigEntity, dark: Boolean): Int {
+    val host = LocalContext.current.applicationContext
+    if (remember(host) { ColorOsNativeUi.source(host) } == null) return DefaultThemeAccent
+    val uri = config.wallpaperUri?.takeIf { it.isNotBlank() }
+    val resource = if (config.defaultWallpaperStyle == DefaultWallpaperStyle.KANBAN)
+        if (dark) R.drawable.default_wallpaper_dark else R.drawable.default_wallpaper_light else 0
+    val key = uri ?: "resource:$resource"
+    val accent by produceState(themeAccentCache.get(key) ?: DefaultThemeAccent, key) {
+        value = withContext(Dispatchers.IO) {
+            themeAccentMutex.withLock {
+                themeAccentCache.get(key) ?: run {
+                    val bitmap = uri?.let { loadSampledBitmap(host, it.toUri(), maxDimension = 256) }
+                        ?: resource.takeIf { it != 0 }?.let {
+                            BitmapFactory.decodeResource(host.resources, it,
+                                BitmapFactory.Options().apply { inSampleSize = 8 })
+                        }
+                    val extracted = try { colorOsWallpaperAccent(bitmap) ?: DefaultThemeAccent }
+                        finally { bitmap?.recycle() }
+                    themeAccentCache.put(key, extracted)
+                    extracted
+                }
+            }
+        }
+    }
+    return accent
+}
 
 @Immutable
 internal data class ColorOsHomeAccents(val button: Int, val dock: Int)
@@ -27,17 +67,12 @@ internal fun dockAccent(source: ColorOsNativeUi.Source, context: Context, wallpa
     wallpaperAccent ?: source.color(context, "couiColorContainerTheme").defaultColor
 
 @Composable
-internal fun rememberColorOsHomeAccents(images: HomeWallpaperImages, background: Int): ColorOsHomeAccents? {
+internal fun rememberColorOsHomeAccents(config: ScheduleConfigEntity, dark: Boolean, background: Int): ColorOsHomeAccents? {
     val host = LocalContext.current
-    val source = remember(host) { ColorOsNativeUi.source(host) } ?: return null
-    val native = rememberNativeContext(dark = false) ?: return null
-    val wallpaperAccent by produceState<Int?>(null, images.source) {
-        value = withContext(Dispatchers.Default) { colorOsWallpaperAccent(images.source) }
-    }
-    return remember(wallpaperAccent, images.source, background, native) {
-        val fallback = dockAccent(source, native.second, null)
-        if (images.source == null) return@remember ColorOsHomeAccents(fallback, fallback)
-        val button = wallpaperAccent ?: fallback
+    if (remember(host) { ColorOsNativeUi.source(host) } == null) return null
+    val wallpaperAccent = rememberColorOsThemeAccent(config, dark)
+    return remember(wallpaperAccent, background) {
+        val button = wallpaperAccent
         ColorOsHomeAccents(button, colorOsContrastingAccent(button, background))
     }
 }

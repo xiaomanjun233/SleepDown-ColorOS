@@ -6,6 +6,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 
+internal enum class NativeMaterialSurfaceRole { Content, Dialog }
+
 /** A passive material background. Geometry stays with its owner; content stays in Compose. */
 internal data class NativeMaterialSurfaceRequest(
     val modifier: Modifier, val shape: Shape, val dark: Boolean,
@@ -15,7 +17,9 @@ internal data class NativeMaterialSurfaceRequest(
     val shapeProvider: (() -> Shape)? = null,
     val surfaceAlpha: () -> Float = { 1f },
     val edgeEffects: Boolean = true,
-    val blurRadiusScale: Float = 1f
+    val blurRadiusScale: Float = 1f,
+    val tintAlphaScale: Float = 1f,
+    val role: NativeMaterialSurfaceRole = NativeMaterialSurfaceRole.Content
 )
 
 internal val LocalNativeMaterialSurfaceRenderer =

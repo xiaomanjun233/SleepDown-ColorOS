@@ -23,6 +23,7 @@ import com.xiaomanjun.sleepdownschedule.glass.GlassBackdropDomain
 import com.xiaomanjun.sleepdownschedule.glass.glassBackdropProducer
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassLayerBackdrop
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -84,9 +85,9 @@ class QuickScheduleSheetLifecycleTest {
             val detail = compose.onNodeWithText("详细设置").fetchSemanticsNode().boundsInRoot
             val panel = compose.onNodeWithTag("quick_schedule_sheet").fetchSemanticsNode().boundsInRoot
             val root = compose.onNodeWithTag("sheet-root").fetchSemanticsNode().boundsInRoot
-            assertEquals("Reopen $cycle left edge", root.left, panel.left, 1f)
-            assertEquals("Reopen $cycle right edge", root.right, panel.right, 1f)
-            assertEquals("Reopen $cycle bottom edge", root.bottom, panel.bottom, 1f)
+            assertTrue("Floating sheet needs a left gap", panel.left > root.left)
+            assertTrue("Floating sheet needs a bottom gap", panel.bottom < root.bottom)
+            assertEquals("Balanced horizontal gaps", panel.left - root.left, root.right - panel.right, 1f)
             if (cycle == 0) { originalTitle = title; originalDetail = detail }
             assertEquals("Reopen $cycle title", originalTitle, title)
             assertEquals("Reopen $cycle bottom action", originalDetail, detail)

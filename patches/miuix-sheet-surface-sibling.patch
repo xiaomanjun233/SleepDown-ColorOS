@@ -1,0 +1,101 @@
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/BottomSheetContentLayout.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/layout/BottomSheetContentLayout.kt
+@@ -127,6 +127,7 @@ internal fun BottomSheetContentLayout(
+     popupHost: @Composable (visible: Boolean, content: @Composable () -> Unit) -> Unit,
+     modifier: Modifier = Modifier,
+     surfaceModifier: Modifier = Modifier,
++    surfaceContent: (@Composable (Modifier) -> Unit)? = null,
+     title: String? = null,
+     startAction: @Composable (() -> Unit)? = null,
+     endAction: @Composable (() -> Unit)? = null,
+@@ -301,6 +302,7 @@ internal fun BottomSheetContentLayout(
+                 },
+                 modifier = sheetModifier,
+                 surfaceModifier = surfaceModifier,
++                surfaceContent = surfaceContent,
+                 topInset = topInset,
+                 enableNestedScroll = enableNestedScroll,
+                 startAction = startAction?.let { action ->
+@@ -338,6 +340,7 @@ internal fun BottomSheetContent(
+     onDismissRequest: (() -> Unit)?,
+     modifier: Modifier = Modifier,
+     surfaceModifier: Modifier = Modifier,
++    surfaceContent: (@Composable (Modifier) -> Unit)? = null,
+     topInset: Dp? = null,
+     enableNestedScroll: Boolean = true,
+     startAction: @Composable (() -> Unit)? = null,
+@@ -568,6 +571,7 @@ internal fun BottomSheetContent(
+         onUpdateAlpha = updateDimAlpha,
+         modifier = modifier,
+         surfaceModifier = surfaceModifier,
++        surfaceContent = surfaceContent,
+         content = content,
+     )
+ }
+@@ -598,6 +602,7 @@ private fun BottomSheetColumn(
+     onUpdateAlpha: (Float) -> Unit,
+     modifier: Modifier = Modifier,
+     surfaceModifier: Modifier = Modifier,
++    surfaceContent: (@Composable (Modifier) -> Unit)? = null,
+     content: @Composable () -> Unit,
+ ) {
+     val density = LocalDensity.current
+@@ -614,7 +619,7 @@ private fun BottomSheetColumn(
+             backgroundColor = backgroundColor,
+         )
+
+-        Column(
++        Box(
+             modifier = modifier
+                 .pointerInput(Unit) { detectTapGestures { /* Consume click */ } }
+                 .then(if (enableNestedScroll) Modifier.nestedScroll(nestedScrollConnection) else Modifier)
+@@ -632,17 +637,19 @@ private fun BottomSheetColumn(
+                 }
+                 .then(if (defaultWindowInsetsPadding) Modifier.imePadding() else Modifier)
+                 .padding(horizontal = outsideMargin.width)
+-                .then(surfaceModifier)
+                 .squircleSurface(
+                     color = backgroundColor,
+                     topStart = cornerRadius,
+                     topEnd = cornerRadius,
+                     bottomEnd = 0.dp,
+                     bottomStart = 0.dp,
+-                )
+-                .padding(horizontal = insideMargin.width)
+-                .padding(bottom = insideMargin.height),
++                ),
+         ) {
++            // Keep backdrop sampling in a sibling: its offscreen clip must not capture
++            // AndroidView controls, whose native materials sample the preceding scene.
++            if (surfaceContent != null) surfaceContent(Modifier.matchParentSize())
++            else Box(Modifier.matchParentSize().then(surfaceModifier))
++            Column(Modifier.padding(horizontal = insideMargin.width).padding(bottom = insideMargin.height)) {
+             DragHandleArea(
+                 dragHandleColor = dragHandleColor,
+                 allowDismiss = allowDismiss,
+@@ -660,6 +667,7 @@ private fun BottomSheetColumn(
+             )
+
+             content()
++            }
+         }
+     }
+ }
+--- a/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/overlay/OverlayBottomSheet.kt
++++ b/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/overlay/OverlayBottomSheet.kt
+@@ -51,6 +51,7 @@ fun OverlayBottomSheet(
+     show: Boolean,
+     modifier: Modifier = Modifier,
+     surfaceModifier: Modifier = Modifier,
++    surfaceContent: (@Composable (Modifier) -> Unit)? = null,
+     title: String? = null,
+     startAction: @Composable (() -> Unit)? = null,
+     endAction: @Composable (() -> Unit)? = null,
+@@ -99,6 +100,7 @@ fun OverlayBottomSheet(
+         },
+         modifier = modifier,
+         surfaceModifier = surfaceModifier,
++        surfaceContent = surfaceContent,
+         title = title,
+         startAction = startAction,
+         endAction = endAction,

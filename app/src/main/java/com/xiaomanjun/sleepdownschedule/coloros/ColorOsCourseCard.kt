@@ -116,17 +116,19 @@ internal fun rememberColorOsCourseCardMode(): NativeCourseCardMode? {
 internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Composable () -> Unit): Boolean {
     val mode = LocalNativeCourseCardMode.current ?: return false
     if (!mode.enabled) return false
-    return ColorOsMaterialSurface(request.copy(blurRadiusScale = mode.blurRadiusScale), content)
+    return ColorOsMaterialSurface(request.copy(blurRadiusScale = mode.blurRadiusScale), ColorOsSurfaceStyle.CourseCard, null, content)
 }
 
 /** Shared native backdrop for cards, table headers and assistant shells, with no input interception. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, content: @Composable () -> Unit): Boolean {
-    return ColorOsMaterialSurface(request, ColorOsSurfaceStyle.Content, null, content)
+    val style = if (request.role == com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.Dialog)
+        ColorOsSurfaceStyle.Dialog else ColorOsSurfaceStyle.Content
+    return ColorOsMaterialSurface(request, style, null, content)
 }
 
-internal enum class ColorOsSurfaceStyle { Content, Menu, NeutralMenu }
+internal enum class ColorOsSurfaceStyle { Content, CourseCard, Menu, NeutralMenu, Dialog }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -187,6 +189,12 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private val managerType = source.load("com.coui.appcompat.COUIMaterialStateManager")
     private val manager = managerType.getField("INSTANCE").get(null)
     private val light = source.load(LightDrawable).getConstructor().newInstance() as Drawable
+    private val isMenu = style == ColorOsSurfaceStyle.Menu || style == ColorOsSurfaceStyle.NeutralMenu
+    // Reuse the native popup's edge drawable instead of applying the FAB stroke to menus.
+    private val menuFrame = if (isMenu) source.load("com.coui.appcompat.poplist.RoundFrameLayout")
+        .getConstructor(Context::class.java).newInstance(context) as View else null
+    private var menuEdge: Drawable? = null
+    private var courseRadiusRatio = 0f
     private val lightTouch: Method = light.javaClass.getMethod("onTouchEvent", MotionEvent::class.java)
     private val location = IntArray(2)
     private val tintDrawScope = CanvasDrawScope()
@@ -228,9 +236,19 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         foreground = light
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
-            .invoke(light, context, type.getField(if (style == ColorOsSurfaceStyle.Content)
-                CourseLightPreset else "TYPE_TRANSLUCENT_LARGE_1").get(null))
-        source.setFollowLightIntensity(light, if (style == ColorOsSurfaceStyle.Content) 2f else 3f)
+            .invoke(light, context, type.getField(if (isMenu) "TYPE_TRANSLUCENT_LARGE_1" else CourseLightPreset).get(null))
+        source.setFollowLightIntensity(light, when (style) {
+            ColorOsSurfaceStyle.CourseCard -> 1.2f
+            ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
+            else -> 2f
+        })
+        if (style == ColorOsSurfaceStyle.CourseCard) {
+            val lightEffect = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
+            val type = lightEffect.javaClass
+            val start = type.getDeclaredField("mStartRadius").apply { isAccessible = true }.getFloat(lightEffect)
+            val end = type.getDeclaredField("mEndRadius").apply { isAccessible = true }.getFloat(lightEffect)
+            courseRadiusRatio = start / end
+        }
     }
 
     fun updateOutline(shape: Shape, density: Density, direction: LayoutDirection) {
@@ -252,6 +270,10 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         }
         setCorners.invoke(null, this, params)
         appliedCorners = corners
+        menuEdge?.let { edge -> corners?.let {
+            edge.javaClass.getMethod("setCornerRadius", Float::class.javaPrimitiveType).invoke(edge, it.radius)
+            edge.javaClass.getMethod("setWeight", Float::class.javaPrimitiveType).invoke(edge, it.weight)
+        } }
     }
 
     fun configure(value: NativeMaterialSurfaceRequest, density: Density, direction: LayoutDirection) {
@@ -259,7 +281,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         val previous = request
         val materialChanged = previous == null || previous.dark != value.dark ||
             previous.materialVisible != value.materialVisible || previous.edgeEffects != value.edgeEffects ||
-            previous.blurRadiusScale != value.blurRadiusScale
+            previous.blurRadiusScale != value.blurRadiusScale || previous.tintAlphaScale != value.tintAlphaScale
         request = value
         tintDensity = density
         tintDirection = direction
@@ -282,6 +304,11 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        if (style == ColorOsSurfaceStyle.CourseCard && w > 0 && h > 0) {
+            val radius = kotlin.math.hypot(w.toFloat(), h.toFloat())
+            light.javaClass.getMethod("setRadiusRange", Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
+                .invoke(light, radius * courseRadiusRatio, radius)
+        }
         if (isAttachedToWindow) applyMaterial()
     }
 
@@ -309,15 +336,39 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         // Match COUIButton's native order: geometry first, then the system material presets.
         updateMaterialCorners()
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        if (blur && (style == ColorOsSurfaceStyle.NeutralMenu || value.blurRadiusScale != 1f)) {
+        if (blur && (isMenu || style == ColorOsSurfaceStyle.Dialog || value.blurRadiusScale != 1f || value.tintAlphaScale != 1f)) {
             effect.getMethod("setViewBlurEffect", View::class.java,
                 source.load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams"))
-                .invoke(null, this, source.weatherButtonBlurParams(context, value.blurRadiusScale))
+                .invoke(null, this, if (isMenu) source.menuBlurParams(context, style == ColorOsSurfaceStyle.NeutralMenu)
+                    else if (style == ColorOsSurfaceStyle.Dialog) source.dialogBlurParams(context)
+                    else source.weatherButtonBlurParams(context, value.blurRadiusScale, value.tintAlphaScale))
         } else {
             setBlur.invoke(null, this, blurType.getField(if (blur) CourseBlurPreset else "TYPE_NO_EFFECT").get(null))
         }
         setStroke.invoke(null, this, strokeType.getField(
-            if (stroke) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
+            if (stroke && !isMenu) CourseStrokePreset else "TYPE_NO_EFFECT").get(null))
+        if (menuFrame != null) {
+            menuFrame.javaClass.getDeclaredMethod("initMaterialEffects").apply { isAccessible = true }.invoke(menuFrame)
+            val edge = menuFrame.javaClass.getDeclaredField("mShadowEdgeDrawable")
+                .apply { isAccessible = true }.get(menuFrame) as Drawable
+            appliedCorners?.let { corners ->
+                edge.javaClass.getMethod("setCornerRadius", Float::class.javaPrimitiveType).invoke(edge, corners.radius)
+                edge.javaClass.getMethod("setWeight", Float::class.javaPrimitiveType).invoke(edge, corners.weight)
+            }
+            menuEdge = edge
+            foreground = if (stroke) android.graphics.drawable.LayerDrawable(arrayOf(edge, light)) else light
+        } else if (stroke && style == ColorOsSurfaceStyle.CourseCard) {
+            val params = effect.getMethod("getStrokeParamsByType", Context::class.java, strokeType)
+                .invoke(null, context, strokeType.getField(CourseStrokePreset).get(null))
+            val paramsType = params.javaClass
+            fun number(name: String) = paramsType.getMethod(name).invoke(params) as Float
+            val brighter = paramsType.getMethod("copy", Int::class.javaPrimitiveType, Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType, Float::class.javaPrimitiveType).invoke(params,
+                paramsType.getMethod("getStrokeType").invoke(params), 0.45f, 3f,
+                number("getEdgeAngle"), number("getShadowFadeIn"), number("getShadowFadeOut"), number("getShadowFadeScale"))
+            effect.getMethod("setViewStrokeEffect", View::class.java, paramsType).invoke(null, this, brighter)
+        }
         light.javaClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(light, glow)
         invalidate()
     }

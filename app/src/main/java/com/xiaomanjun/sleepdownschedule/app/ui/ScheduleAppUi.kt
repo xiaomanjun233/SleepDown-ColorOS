@@ -1417,7 +1417,12 @@ fun CourseScheduleAppUi(
             colors.map { it.blue }.average().toFloat()).toArgb()
     }
     val colorOsHomeAccents = com.xiaomanjun.sleepdownschedule.coloros
-        .rememberColorOsHomeAccents(wallpaperImages, colorOsAccentBackground)
+        .rememberColorOsHomeAccents(visualState.config, appDarkTheme, colorOsAccentBackground)
+    val colorOsActiveDockAccent = if (screen is Screen.Home) colorOsHomeAccents?.dock
+        else colorOsHomeAccents?.button?.let {
+            com.xiaomanjun.sleepdownschedule.coloros.colorOsContrastingAccent(
+                it, MaterialTheme.colorScheme.background.toArgb())
+        }
     val adaptiveGlassState = rememberFallbackAdaptiveGlassState(visualState.config)
     val homeChromeHasWallpaper = visualState.config.hasAnyWallpaper()
     val homeChromeForeground = adaptiveGlassState.contentColor.toArgb().takeIf { homeChromeHasWallpaper }
@@ -2456,7 +2461,7 @@ fun CourseScheduleAppUi(
         LocalStartupPhase provides startupPhase,
         LocalGlassQuality provides glassQuality,
         LocalAdaptiveGlass provides adaptiveGlassState,
-        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent provides colorOsHomeAccents?.dock,
+        com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsDockAccent provides colorOsActiveDockAccent,
         com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsButtonAccent provides colorOsHomeAccents?.button,
         com.xiaomanjun.sleepdownschedule.coloros.LocalColorOsHomeChromeStyle provides
             homeNeutralChromeStyle.takeIf { screen is Screen.Home },
@@ -5826,17 +5831,23 @@ fun ScheduleManagerEntryPill(
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(animationSpec = tween(320)) +
-                scaleIn(initialScale = 0.4f, animationSpec = tween(320, easing = CubicBezierEasing(0.2f, 0.75f, 0.2f, 1f))),
-            exit = fadeOut(animationSpec = tween(120)) +
-                scaleOut(targetScale = 0.4f, animationSpec = tween(120))
+            enter = scaleIn(initialScale = 0.4f, animationSpec = tween(320, easing = CubicBezierEasing(0.2f, 0.75f, 0.2f, 1f))),
+            exit = scaleOut(targetScale = 0.4f, animationSpec = tween(120))
         ) {
+            val entryAlpha by transition.animateFloat(
+                transitionSpec = { tween(if (targetState == androidx.compose.animation.EnterExitState.Visible) 320 else 120) },
+                label = "schedule settings entry alpha"
+            ) { if (it == androidx.compose.animation.EnterExitState.Visible) 1f else 0f }
+            val entryModifier = Modifier.graphicsLayer {
+                alpha = entryAlpha
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
+            }
             val lightGlass = glassUsesLightStyle(config)
             if (backdrop != null) {
                 LiquidButton(
                     onClick = onClick,
                     backdrop = backdrop,
-                    modifier = Modifier.width(140.dp),
+                    modifier = entryModifier.width(140.dp),
                     height = 48.dp,
                     blurRadius = 2.dp,
                     lensHeight = 12.dp,
@@ -5859,7 +5870,7 @@ fun ScheduleManagerEntryPill(
                 GlassPill(
                     backdrop = null,
                     config = config,
-                    modifier = Modifier
+                    modifier = entryModifier
                         .width(140.dp)
                         .height(48.dp),
                     onClick = onClick
@@ -6377,7 +6388,7 @@ private fun CourseColorEditorDialog(
                                     modifier = Modifier.size(34.dp),
                                     height = 34.dp,
                                     contentPadding = PaddingValues(0.dp),
-                                    surfaceColor = ComposeColor(0xFF0A84FF),
+                                    surfaceColor = MaterialTheme.colorScheme.primary,
                                     blurRadius = 7.dp,
                                     lensHeight = 11.dp,
                                     lensAmount = 15.dp,
@@ -6394,7 +6405,7 @@ private fun CourseColorEditorDialog(
                                 Surface(
                                     modifier = Modifier.size(34.dp),
                                     shape = Capsule(),
-                                    color = ComposeColor(0xFF0A84FF),
+                                    color = MaterialTheme.colorScheme.primary,
                                     onClick = addColor
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -6803,7 +6814,7 @@ fun PersonalizePanel(
                             "\u9009\u62E9\u58C1\u7EB8",
                             onClick = onPickWallpaper,
                             textColorOverride = ComposeColor.White,
-                            surfaceColorOverride = ComposeColor(0xFF0A84FF).copy(alpha = 0.72f)
+                            surfaceColorOverride = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
                         )
                         if (state.config.wallpaperUri != null) {
                             LiquidMenuButton(

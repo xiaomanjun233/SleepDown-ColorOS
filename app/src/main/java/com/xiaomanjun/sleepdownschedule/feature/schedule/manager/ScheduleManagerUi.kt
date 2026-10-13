@@ -341,8 +341,8 @@ fun ScheduleManagerScreen(
                 blurRadius = 10.dp,
                 lensHeight = 26.dp,
                 lensAmount = 34.dp,
-                surfaceColor = Color(0xFF007AFF).copy(alpha = 0.24f),
-                tint = Color(0xFF007AFF),
+                surfaceColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f),
+                tint = MaterialTheme.colorScheme.primary,
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 Text("设为", color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
@@ -514,8 +514,8 @@ fun ScheduleManagerScreen(
                     .offset(x = plusOffset)
                     .size(buttonSize),
                 height = buttonSize,
-                tint = Color(0xFF007AFF),
-                surfaceColor = Color(0xFF007AFF).copy(alpha = 0.22f),
+                tint = MaterialTheme.colorScheme.primary,
+                surfaceColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
                 blurRadius = 10.dp,
                 lensHeight = 30.dp,
                 lensAmount = 44.dp,

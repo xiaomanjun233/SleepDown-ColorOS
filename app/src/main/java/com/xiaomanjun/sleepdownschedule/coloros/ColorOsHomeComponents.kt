@@ -44,8 +44,11 @@ internal class NativeDock(
     private var foreground: Int?
 ) {
     fun refreshAppearance() {
+        source.cancelFollowLights(view)
         // refresh() leaves the expansion view, metaball chain and active springs bound.
         view.javaClass.getMethod("refresh").invoke(view)
+        source.refreshFollowLightIntensity(view)
+        source.cancelFollowLights(view)
         updateAccent(accent, force = true)
         Log.i("SleepDownCOUI", "Dock appearance refreshed in place: view=${System.identityHashCode(view)}, " +
             "night=${context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK}")
@@ -90,6 +93,7 @@ internal class NativeDock(
     fun select(index: Int) {
         val wanted = index + 1
         if (getSelected.invoke(view) == wanted) return
+        source.cancelFollowLights(view)
         // State synchronization is separate from the native user's touch/slide callbacks.
         setListener.invoke(view, null)
         try {

@@ -167,9 +167,9 @@ fun CourseScheduleTheme(
                 if (darkTheme) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         }
     }
-    val blue = Color(0xFF007AFF)
-    val blueContainer = Color(0xFFD6E9FF)
-    val darkBlueContainer = Color(0xFF003A66)
+    val blue = Color(com.xiaomanjun.sleepdownschedule.coloros.rememberColorOsThemeAccent(config, darkTheme))
+    val blueContainer = androidx.compose.ui.graphics.lerp(blue, Color.White, 0.84f)
+    val darkBlueContainer = androidx.compose.ui.graphics.lerp(blue, Color.Black, 0.55f)
     MaterialTheme(
         shapes = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownContinuousShapes,
         colorScheme = if (darkTheme) {
@@ -177,7 +177,7 @@ fun CourseScheduleTheme(
                 primary = blue,
                 onPrimary = Color.White,
                 primaryContainer = darkBlueContainer,
-                onPrimaryContainer = Color(0xFFD6E9FF),
+                onPrimaryContainer = blueContainer,
                 secondary = blue,
                 secondaryContainer = darkBlueContainer,
                 tertiary = blue,
@@ -192,7 +192,7 @@ fun CourseScheduleTheme(
                 primary = blue,
                 onPrimary = Color.White,
                 primaryContainer = blueContainer,
-                onPrimaryContainer = Color(0xFF003A66),
+                onPrimaryContainer = darkBlueContainer,
                 secondary = blue,
                 secondaryContainer = blueContainer,
                 tertiary = blue,

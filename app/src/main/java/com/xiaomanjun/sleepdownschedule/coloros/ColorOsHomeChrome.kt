@@ -39,8 +39,26 @@ internal fun colorOsHomeNeutralTint(dark: Boolean) =
     androidx.compose.ui.graphics.Color(if (dark) 0xFF050505 else 0xFFFFFFFF)
         .copy(alpha = if (dark) 0.40f else 0.28f)
 
-internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(context: Context, radiusScale: Float = 1f): Any =
-    scaledBlurParams(context, "TYPE_CONTENT_TRANSPARENT_BUTTON", radiusScale)
+internal fun ColorOsNativeUi.Source.weatherButtonBlurParams(
+    context: Context, radiusScale: Float = 1f, tintAlphaScale: Float = 1f
+): Any = scaledBlurParams(context, "TYPE_CONTENT_TRANSPARENT_BUTTON", radiusScale, tintAlphaScale)
+
+/** Embed the alert's resource recipe in this window, without a second window-behind sampler. */
+internal fun ColorOsNativeUi.Source.dialogBlurParams(context: Context): Any {
+    val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
+    val preset = weatherButtonBlurParams(context)
+    val dark = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val theme = if (dark) "dark" else "light"
+    fun layer(name: String) = "#" + Integer.toHexString(
+        context.getColor(resource("coui_dialog_list_${name}_blur_$theme", "color"))).padStart(8, '0')
+    val radius = context.resources.getInteger(resource("coui_dialog_blur_radius", "integer")).toFloat()
+    return load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectParams")
+        .getConstructor(Float::class.javaPrimitiveType, String::class.java, BlendMode::class.java,
+            String::class.java, BlendMode::class.java)
+        .newInstance(radius, layer("blend"), base.getMethod("getBlendModeLayer1").invoke(preset),
+            layer("mix"), base.getMethod("getBlendModeLayer2").invoke(preset))
+}
 
 /** Keep COUI's color layers and material delegate; only lighten its second blur pass. */
 internal fun ColorOsNativeUi.Source.toolbarButtonBlurParams(
@@ -52,15 +70,20 @@ internal fun ColorOsNativeUi.Source.toolbarButtonBlurParams(
     else -> null
 }
 
-private fun ColorOsNativeUi.Source.scaledBlurParams(context: Context, typeName: String, radiusScale: Float): Any {
+private fun ColorOsNativeUi.Source.scaledBlurParams(
+    context: Context, typeName: String, radiusScale: Float, tintAlphaScale: Float = 1f
+): Any {
     val effect = load("com.coui.appcompat.COUIMaterialEffect")
     val type = load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType")
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
     val preset = effect.getMethod("getBlurParamsByType", Context::class.java, type)
         .invoke(null, context, type.getField(typeName).get(null))
-    if (radiusScale == 1f) return preset
-    fun color(name: String): String = "#" + Integer.toHexString(
-        base.getMethod(name, Context::class.java).invoke(preset, context) as Int).padStart(8, '0')
+    if (radiusScale == 1f && tintAlphaScale == 1f) return preset
+    fun color(name: String): String {
+        val original = base.getMethod(name, Context::class.java).invoke(preset, context) as Int
+        val alpha = (android.graphics.Color.alpha(original) * tintAlphaScale).toInt().coerceIn(0, 255)
+        return "#" + Integer.toHexString((original and 0x00FFFFFF) or (alpha shl 24)).padStart(8, '0')
+    }
     val radius = base.getMethod("getBlurRadius", Context::class.java).invoke(preset, context) as Float
     return load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectParams")
         .getConstructor(Float::class.javaPrimitiveType, String::class.java, BlendMode::class.java,

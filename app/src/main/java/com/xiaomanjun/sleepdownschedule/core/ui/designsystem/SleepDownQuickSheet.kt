@@ -422,6 +422,18 @@ internal fun Modifier.centeredDialogBackdropModifier(
         centered = true
     )
 
+/** Floating sheet background only; native buttons remain later siblings of this material. */
+@Composable
+internal fun QuickSheetDialogMaterial(
+    modifier: Modifier, shape: Shape, backdrop: Backdrop?, config: ScheduleConfigEntity
+) {
+    if (LocalNativeMaterialSurfaceRenderer.current?.invoke(NativeMaterialSurfaceRequest(
+        modifier = modifier, shape = shape, dark = appUsesDarkTheme(config),
+        role = NativeMaterialSurfaceRole.Dialog, edgeEffects = false
+    )) {} == true) return
+    Box(modifier.clip(shape).quickSheetBackdropModifier(backdrop, config, 28.dp, shapeOverride = shape))
+}
+
 /** Canonical glass/fallback surface for centered dialogs, bottom sheets and nested sheet cards. */
 @Composable
 internal fun Modifier.quickSheetBackdropModifier(
@@ -429,9 +441,10 @@ internal fun Modifier.quickSheetBackdropModifier(
     config: ScheduleConfigEntity,
     blurRadius: Dp,
     inner: Boolean = false,
-    centered: Boolean = false
+    centered: Boolean = false,
+    shapeOverride: Shape? = null
 ): Modifier {
-    val shape = when {
+    val shape = shapeOverride ?: when {
         inner -> RoundedRectangle(SleepDownDesignTokens.QuickSheet.InnerCorner)
         centered -> RoundedRectangle(
             cornerRadius = SleepDownDesignTokens.CenteredDialog.Corner,
@@ -625,14 +638,13 @@ internal fun QuickSheetLiquidAction(
             Color(0xFFF3F6FB).copy(alpha = 0.90f)
         }
         val actionSurfaceColor = when {
-            primary && dark -> Color(0xFF099AFF)
-            primary -> Color(0xFF0A84FF).copy(alpha = 0.88f)
+            primary && dark -> MaterialTheme.colorScheme.primary
+            primary -> MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
             destructive && !centeredAction -> Color(0xFFFF453A).copy(alpha = 0.88f)
             else -> neutralSurface
         }
         val actionTint = when {
-            primary && dark -> Color(0xFF099AFF)
-            primary -> Color(0xFF0A84FF)
+            primary -> MaterialTheme.colorScheme.primary
             destructive && !centeredAction -> Color(0xFFFF453A)
             else -> Color.Unspecified
         }
@@ -665,8 +677,7 @@ internal fun QuickSheetLiquidAction(
         val dark = appUsesDarkTheme(config)
         val background = when {
             destructive && !centeredAction -> Color(0xFFFF453A)
-            primary && dark -> Color(0xFF099AFF)
-            primary -> Color(0xFF0A84FF)
+            primary -> MaterialTheme.colorScheme.primary
             centeredAction && dark -> Color(0xFF363639)
             centeredAction -> Color(0xFFE6E8EC)
             dark -> Color(0xFF30343D)

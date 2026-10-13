@@ -26,9 +26,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import com.kyant.shapes.RoundedRectangle
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -36,6 +41,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.unit.Constraints
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuSurfaceRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuRowRenderer
@@ -43,6 +50,8 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuItem
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuRowRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuSurfaceRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuTouchSource
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativePopupRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativePopupRequest
 import androidx.compose.ui.input.pointer.motionEventSpy
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
 import androidx.compose.ui.graphics.toArgb
@@ -228,8 +237,7 @@ private fun rememberMiuixListPopupStyle(
 ): ListPopupVisualStyle {
     val scope = rememberCoroutineScope()
     val dark = appUsesDarkTheme(config)
-    val nativeMaterial = LocalNativeMenuSurfaceRenderer.current != null &&
-        !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
+    val nativeMaterial = LocalNativeMenuSurfaceRenderer.current != null
     val menuTouch = remember { NativeMenuTouchSource() }
     val radiusCapPx = with(LocalDensity.current) { 90.dp.toPx() }
     val highlight = remember(scope, radiusCapPx, dark) {
@@ -274,9 +282,10 @@ private fun rememberMiuixListPopupStyle(
     itemTextStyle = MiuixTheme.textStyles.main.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
     itemVerticalPadding = 7.dp,
     itemMinHeight = 40.dp,
-    border = if (com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance)
+    border = if (nativeMaterial) null
+        else if (com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance)
         BorderStroke(1.dp, com.xiaomanjun.sleepdownschedule.glass.flatControlBorder(dark))
-        else if (nativeMaterial) null else rim,
+        else rim,
     morphAnimation = true,
     slideSelection = true,
     dimBackground = false,
@@ -352,6 +361,49 @@ internal fun SleepDownLiquidDropdownPreference(
     onExpandedChange: (Boolean) -> Unit = {},
     onSelectedIndexChange: (Int) -> Unit
 ) {
+    var nativeExpanded by remember { mutableStateOf(false) }
+    var nativeAnchor by remember { mutableStateOf(Rect.Zero) }
+    val nativePopup = LocalNativePopupRenderer.current
+    if (nativePopup?.invoke(NativePopupRequest(
+            show = nativeExpanded,
+            anchorBounds = nativeAnchor,
+            items = items.mapIndexed { index, label -> NativeMenuItem(label,
+                selected = selectedIndex == index, checkable = true,
+                onClick = { onSelectedIndexChange(index) }) },
+            dark = appUsesDarkTheme(config),
+            onDismissRequest = { nativeExpanded = false; onExpandedChange(false) }
+        )) == true) {
+        val actualEnabled = enabled && items.isNotEmpty()
+        val actionColor = if (actualEnabled) MiuixTheme.colorScheme.onSurfaceVariantActions
+            else MiuixTheme.colorScheme.disabledOnSecondaryVariant
+        top.yukonga.miuix.kmp.basic.BasicComponent(
+            modifier = modifier.onGloballyPositioned { nativeAnchor = it.boundsInRoot() },
+            title = if (selectedBadgeText == null && compactTextStyle == null) title else "",
+            summary = summary, insideMargin = insideMargin,
+            startAction = if (selectedBadgeText != null || compactTextStyle != null) { {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val colors = BasicComponentDefaults.titleColor()
+                    MiuixText(title, style = compactTextStyle ?: MiuixTheme.textStyles.main,
+                        fontSize = compactTextStyle?.fontSize ?: MiuixTheme.textStyles.headline1.fontSize,
+                        fontWeight = if (compactTextStyle == null) FontWeight.Medium else compactTextStyle.fontWeight,
+                        color = if (actualEnabled) colors.color else colors.disabledColor)
+                    selectedBadgeText?.let { PreferenceBadge(it) }
+                }
+            } } else null,
+            endActions = {
+                MiuixText(items.getOrNull(selectedIndex).orEmpty(),
+                    modifier = Modifier.padding(end = 8.dp).weight(1f, fill = false),
+                    style = compactTextStyle ?: MiuixTheme.textStyles.body2, color = actionColor)
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null,
+                    tint = actionColor, modifier = Modifier.size(20.dp))
+            },
+            onClick = { nativeExpanded = true; onExpandedChange(true) },
+            enabled = actualEnabled,
+            role = androidx.compose.ui.semantics.Role.DropdownList,
+            showIndication = showAnchorPressFeedback
+        )
+        return
+    }
     // The dropdown host is rendered by the root Miuix host as a sibling after the page's
     // underlay producer, so it may sample the complete Scaffold underlay (TopBar, large title,
     // content and low-level overlays) instead of only the flat background passed by the caller.
@@ -423,7 +475,8 @@ private fun SleepDownLiquidMenuItem.asNativeMenuItem(iconColor: Color): NativeMe
     title = text, iconRes = iconRes, description = summary, enabled = enabled,
     selected = selected || accent, checkable = selected || accent,
     foreground = iconColor.toArgb(), iconTint = iconColor.toArgb(),
-    children = children.map { it.asNativeMenuItem(iconColor) }
+    children = children.map { it.asNativeMenuItem(iconColor) },
+    onClick = onClick
 )
 
 private fun SleepDownLiquidMenuItem.asMiuixDropdownItem(iconColor: Color, dark: Boolean, nativeRows: Boolean): DropdownItem = DropdownItem(
@@ -449,7 +502,7 @@ private fun SleepDownLiquidMenuItem.asMiuixDropdownItem(iconColor: Color, dark: 
 @Composable
 internal fun SleepDownLiquidCascadingPopup(
     show: Boolean,
-    @Suppress("UNUSED_PARAMETER") anchorBounds: Rect,
+    anchorBounds: Rect,
     items: List<SleepDownLiquidMenuItem>,
     onDismissRequest: () -> Unit,
     backdrop: Backdrop?,
@@ -463,6 +516,13 @@ internal fun SleepDownLiquidCascadingPopup(
     collapseContent: (@Composable () -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null
 ) {
+    val nativePopup = LocalNativePopupRenderer.current
+    if (nativePopup?.invoke(NativePopupRequest(
+            show = show, anchorBounds = anchorBounds,
+            items = items.map { it.asNativeMenuItem(contentColor ?: sleepDownPanelForegroundColor(config)) },
+            dark = appUsesDarkTheme(config), onDismissRequest = onDismissRequest,
+            onDismissFinished = onDismissFinished, collapseOnSelection = collapseOnSelection
+        )) == true) return
     val completeUnderlayBackdrop = LocalSettingsPopupBackdrop.current ?: backdrop
     val renderInRootScaffold = LocalCenteredDialogRenderInRootScaffold.current
     val primaryPopupBackdrop = rememberGlassLayerBackdrop(
@@ -476,8 +536,7 @@ internal fun SleepDownLiquidCascadingPopup(
     }
     val popupContentColor = contentColor ?: sleepDownPanelForegroundColor(config)
     val dark = appUsesDarkTheme(config)
-    val nativeRows = LocalNativeMenuRowRenderer.current != null &&
-        !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance
+    val nativeRows = LocalNativeMenuRowRenderer.current != null
     val entry = remember(items, popupContentColor, dark, nativeRows) {
         DropdownEntry(items.map { it.asMiuixDropdownItem(popupContentColor, dark, nativeRows) })
     }

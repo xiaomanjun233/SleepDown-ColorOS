@@ -325,7 +325,7 @@ internal fun LiquidDialogChoiceCard(
 ) {
     val foreground = sleepDownPanelForegroundColor(config)
     val dark = appUsesDarkTheme(config)
-    val accent = Color(0xFF0A84FF)
+    val accent = MaterialTheme.colorScheme.primary
     val optionSelected = selected
     Surface(
         onClick = onClick,
@@ -640,9 +640,7 @@ private fun LiquidAlertActionButton(
     val contentColor = baseContentColor.copy(alpha = if (action.enabled) 1f else 0.38f)
     val dark = appUsesDarkTheme(config)
     val baseSurfaceColor = when (action.style) {
-        LiquidAlertActionStyle.Primary -> if (dark) Color(0xFF099AFF).copy(alpha = 0.82f) else {
-            Color(0xFF0A84FF).copy(alpha = 0.90f)
-        }
+        LiquidAlertActionStyle.Primary -> MaterialTheme.colorScheme.primary.copy(alpha = if (dark) 0.82f else 0.90f)
         LiquidAlertActionStyle.Secondary, LiquidAlertActionStyle.Cancel -> if (dark) {
             Color(0xFF363639).copy(alpha = 0.76f)
         } else {
@@ -790,7 +788,7 @@ fun DialogLiquidButton(
     val surfaceColor = if (neutralFlat) com.xiaomanjun.sleepdownschedule.glass.flatControlColor(controlDark) else if (highContrast) {
         Color.Black.copy(alpha = if (controlDark) 0.62f else 0.52f)
     } else when (role) {
-        DialogButtonRole.Confirm -> Color(0xFF0A84FF).copy(alpha = 0.82f)
+        DialogButtonRole.Confirm -> MaterialTheme.colorScheme.primary.copy(alpha = 0.82f)
         DialogButtonRole.Cancel -> if (destructiveFilled) {
             Color(0xFFFF453A).copy(alpha = 0.78f)
         } else {

@@ -20,7 +20,9 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private val onDismiss: (() -> Unit)? = null) {
     private val type = source.load("com.coui.appcompat.poplist.COUIPopupListWindow")
     private val window = type.getConstructor(Context::class.java).newInstance(context) as PopupWindow
-    private var actions: List<AddMenuAction> = emptyList()
+    private var entries: List<NativeMenuItem> = emptyList()
+    private var activeParent = -1
+    private var collapseOnSelection = true
     private var pending: (() -> Unit)? = null
     private var anchor: View? = null
     private var dismissed = true
@@ -28,8 +30,8 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private val animationListenerType = source.load("${type.name}\$OnMainMenuAnimationListener")
 
     init {
-        source.bindFollowLightIntensity(window.contentView, multiplier = 3f, afterMaterialApplied = {
-            if (neutral) applyButtonMaterial()
+        source.bindFollowLightIntensity(window.contentView, multiplier = 1.7f, afterMaterialApplied = {
+            applyButtonMaterial()
         })
         type.getMethod("setUseBackgroundBlur", Boolean::class.javaPrimitiveType).invoke(window, true)
         // WindowManager resolves animation resources against our package, not the vendor APK.
@@ -42,10 +44,12 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
             context.resources.getDimensionPixelSize(source.resource("coui_popup_list_window_max_width", "dimen")))
         type.getMethod("setOnItemClickListener", AdapterView.OnItemClickListener::class.java)
             .invoke(window, AdapterView.OnItemClickListener { _, _, position, _ ->
-                if (window.isShowing && pending == null) {
-                    pending = actions.getOrNull(position)?.onClick
-                    window.dismiss()
-                }
+                val item = entries.getOrNull(position) ?: return@OnItemClickListener
+                if (item.children.isNotEmpty()) activeParent = position else select(item)
+            })
+        type.getMethod("setSubMenuClickListener", AdapterView.OnItemClickListener::class.java)
+            .invoke(window, AdapterView.OnItemClickListener { _, _, position, _ ->
+                entries.getOrNull(activeParent)?.children?.getOrNull(position)?.let(::select)
             })
         type.getMethod("setOnMainMenuAnimationListener", animationListenerType).invoke(window,
             source.listener(animationListenerType.name) { name, _ ->
@@ -63,22 +67,35 @@ internal class NativeOverflowMenu(private val source: ColorOsNativeUi.Source, pr
     private fun applyButtonMaterial() {
         for (field in listOf("mMainMenuWrapper", "mSubMenuWrapper")) {
             val wrapper = type.getDeclaredField(field).apply { isAccessible = true }.get(window) as View
-            source.applyNeutralMenuMaterial(context, wrapper)
+            source.applyMenuMaterial(context, wrapper, neutral)
         }
-        Log.i("SleepDownCOUI", "Overflow neutral colors matched; native window blur retained")
+        Log.i("SleepDownCOUI", "Overflow shared menu material applied; native window blur retained")
     }
 
     fun show(anchor: View, entries: List<AddMenuAction>) {
+        showItems(anchor, entries.map { action ->
+            NativeMenuItem(action.label, action.iconRes,
+                foreground = action.textTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground,
+                iconTint = action.iconTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground,
+                onClick = action.onClick)
+        })
+    }
+
+    private fun select(item: NativeMenuItem) {
+        if (!item.enabled || !window.isShowing || pending != null) return
+        if (collapseOnSelection) { pending = item.onClick; window.dismiss() }
+        else item.onClick()
+    }
+
+    fun showItems(anchor: View, entries: List<NativeMenuItem>, collapseOnSelection: Boolean = true) {
         // COUI's isShowing() becomes false at the start of exit, while its root is still attached.
         if (window.isShowing || window.contentView.isAttachedToWindow || pending != null || entries.isEmpty()) return
         this.anchor = anchor
         dismissed = false
-        actions = entries
-        val items = entries.map { action ->
-            source.createMenuItem(context, host, NativeMenuItem(action.label, action.iconRes,
-                foreground = action.textTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground,
-                iconTint = action.iconTint?.takeIf { it.isSpecified }?.toArgb() ?: foreground))
-        }
+        this.entries = entries
+        this.collapseOnSelection = collapseOnSelection
+        activeParent = -1
+        val items = entries.map { source.createMenuItem(context, host, it) }
         type.getMethod("setItemList", List::class.java).invoke(window, items)
         type.getMethod("show", View::class.java).invoke(window, anchor)
     }

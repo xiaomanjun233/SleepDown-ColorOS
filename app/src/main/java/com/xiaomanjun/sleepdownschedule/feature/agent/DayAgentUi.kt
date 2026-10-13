@@ -770,6 +770,8 @@ fun TodayAgentCard(
         // Keep one material shell. Native content uses COUI's light instead of the legacy dim.
         GlassSurface(
             nativeMaterial = true,
+            nativeBlurRadiusScale = 1.2f,
+            nativeTintAlphaScale = 1.2f,
             backdrop = backdrop,
             config = state.config,
             modifier = Modifier.fillMaxWidth(),
@@ -906,7 +908,7 @@ private fun AgentOperationLiquidButton(
     }
     val bgColor = when {
         destructive -> Color(0xFFFF453A)
-        else -> Color(0xFF0A84FF)
+        else -> MaterialTheme.colorScheme.primary
     }
     if (backdrop != null) {
         LiquidButton(
@@ -1986,6 +1988,8 @@ internal fun DayAgentConversationDialog(
                 if (!homePresentation) {
                 GlassSurface(
                     nativeMaterial = true,
+                    nativeBlurRadiusScale = 1.2f,
+                    nativeTintAlphaScale = 1.2f,
                     backdrop = backdrop,
                     config = state.config,
                     modifier = Modifier.matchParentSize(),
@@ -3102,8 +3106,8 @@ private fun AgentSendLiquidButton(
             lensHeight = 14.dp,
             lensAmount = 20.dp,
             chromaticAberration = false,
-            tint = Color(0xFF0A84FF),
-            surfaceColor = Color(0xFF0A84FF).copy(alpha = 0.82f),
+            tint = MaterialTheme.colorScheme.primary,
+            surfaceColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
             shadowEnabled = true
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -3115,7 +3119,7 @@ private fun AgentSendLiquidButton(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF0A84FF).copy(alpha = 0.90f))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.90f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

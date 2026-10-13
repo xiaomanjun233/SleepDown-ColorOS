@@ -15,7 +15,8 @@ internal data class NativeMenuItem(
     val checkable: Boolean = false,
     val foreground: Int? = null,
     val iconTint: Int? = null,
-    val children: List<NativeMenuItem> = emptyList()
+    val children: List<NativeMenuItem> = emptyList(),
+    val onClick: () -> Unit = {}
 )
 
 internal data class NativeMenuRowRequest(
@@ -44,3 +45,15 @@ internal val LocalNativeMenuRowRenderer =
     compositionLocalOf<(@Composable (NativeMenuRowRequest) -> Boolean)?> { null }
 internal val LocalNativeMenuSurfaceRenderer =
     compositionLocalOf<(@Composable (NativeMenuSurfaceRequest, @Composable () -> Unit) -> Boolean)?> { null }
+
+internal data class NativePopupRequest(
+    val show: Boolean,
+    val anchorBounds: androidx.compose.ui.geometry.Rect,
+    val items: List<NativeMenuItem>,
+    val dark: Boolean,
+    val onDismissRequest: () -> Unit,
+    val onDismissFinished: (() -> Unit)? = null,
+    val collapseOnSelection: Boolean = true
+)
+
+internal val LocalNativePopupRenderer = compositionLocalOf<(@Composable (NativePopupRequest) -> Boolean)?> { null }

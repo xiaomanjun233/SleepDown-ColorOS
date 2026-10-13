@@ -71,9 +71,9 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
     val parentComposition = rememberCompositionContext()
     val latest = rememberUpdatedState(request)
     val primaryColor = rememberUpdatedState(MaterialTheme.colorScheme.primary.toArgb())
-    val actionLayout = request.actions.map { it.label to it.style }
-    var showFailed by remember(native, request.dark, actionLayout) { mutableStateOf(false) }
-    val control = remember(native, request.dark, actionLayout, request.messageContent != null, request.deferDismissUntilHost) {
+    val actionLayout = request.actions.map { it.style }
+    var showFailed by remember(native, actionLayout) { mutableStateOf(false) }
+    val control = remember(native, actionLayout, request.messageContent != null, request.deferDismissUntilHost) {
         ColorOsNativeUi.prepare("create a system alert") {
             source.updateTheme(context, request.dark)
             val builderType = source.load("com.coui.appcompat.dialog.COUIAlertDialogBuilder")
@@ -162,6 +162,8 @@ private class NativeAlert(
     private var displayedTitle: String? = null
     private var displayedMessage: String? = null
     private var actionsBound = false
+    private var displayedDark = request().dark
+    private var actionAppearance: Pair<Boolean, Int>? = null
 
     fun show() {
         dialog.setOnCancelListener { pending = request().onDismissRequest }
@@ -205,7 +207,7 @@ private class NativeAlert(
             source.configureCapsuleButton(button, primary = action.style == LiquidAlertActionStyle.Primary)
         }
         dialog.window?.decorView?.let {
-            source.bindFollowLightIntensity(it, afterMaterialApplied = ::applyActionAppearance)
+            source.bindFollowLightIntensity(it, afterMaterialApplied = { applyActionAppearance(force = true) })
         }
         if (request().deferDismissUntilHost) {
             dismissGuard = NativeFormDismissGuard(dialog, source) { request().onDismissRequest() }
@@ -229,6 +231,15 @@ private class NativeAlert(
         if (disposed || !dialog.isShowing) return
         val current = request()
         if (!current.visible) { pending = {}; dialog.dismiss(); return }
+        if (displayedDark != current.dark) {
+            source.updateTheme(context, current.dark)
+            dialog.window?.decorView?.dispatchConfigurationChanged(context.resources.configuration)
+            val blur = builder.javaClass.getDeclaredField("mBackgroundBlurBuilder")
+                .apply { isAccessible = true }.get(builder)
+            blur.javaClass.getMethod("refreshBlurParams").invoke(blur)
+            displayedDark = current.dark
+            actionAppearance = null
+        }
         if (displayedTitle != current.title) {
             dialog.setTitle(current.title)
             displayedTitle = current.title
@@ -240,7 +251,11 @@ private class NativeAlert(
         current.actions.forEachIndexed { index, action ->
             val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
                 .invoke(dialog, slots[index]) as TextView
-            if (button.isEnabled != action.enabled) button.isEnabled = action.enabled
+            if (button.text.toString() != action.label) button.text = action.label
+            if (button.isEnabled != action.enabled) {
+                button.isEnabled = action.enabled
+                actionAppearance = null
+            }
             // Replace only click dispatch; native press/spotlight remains on the original COUIButton.
             if (!actionsBound) button.setOnClickListener {
                 val active = request().actions[index]
@@ -254,8 +269,10 @@ private class NativeAlert(
         actionsBound = true
     }
 
-    private fun applyActionAppearance() {
+    private fun applyActionAppearance(force: Boolean = false) {
         if (disposed || !dialog.isShowing) return
+        val appearance = request().dark to primaryColor()
+        if (!force && actionAppearance == appearance) return
         request().actions.forEachIndexed { index, action ->
             val button = dialog.javaClass.getMethod("getButton", Int::class.javaPrimitiveType)
                 .invoke(dialog, slots[index]) as TextView
@@ -273,7 +290,9 @@ private class NativeAlert(
                         intArrayOf(source.color(context, "couiColorLabelTertiary").defaultColor,
                             source.color(context, "couiColorLabelPrimary").defaultColor)))
             }
+            if (action.style != LiquidAlertActionStyle.Primary) source.applyTransparentCapsule(button)
         }
+        actionAppearance = appearance
     }
 
     fun dispose() {

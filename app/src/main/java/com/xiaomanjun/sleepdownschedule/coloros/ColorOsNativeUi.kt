@@ -126,13 +126,13 @@ internal object ColorOsNativeUi {
             range.appliedEnd = targetEnd
         }
 
-        private fun boostFollowLights(root: View, delegate: Any?, multiplier: Float) {
+        private fun visitFollowLights(root: View, delegate: Any?, action: (Any) -> Unit) {
             val visited = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
             fun visit(owner: Any?) {
                 if (owner == null || !visited.add(owner)) return
                 if (owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffectDrawable" ||
                     owner.javaClass.name == "com.coui.appcompat.spotlight.COUISpotLightEffect") {
-                    setFollowLightIntensity(owner, multiplier)
+                    action(owner)
                     return
                 }
                 val fields = followLightFields.getOrPut(owner.javaClass) {
@@ -159,6 +159,14 @@ internal object ColorOsNativeUi {
             visit(delegate)
         }
 
+        fun cancelFollowLights(root: View) {
+            visitFollowLights(root, null) { it.javaClass.getMethod("cancel").invoke(it) }
+        }
+
+        fun refreshFollowLightIntensity(root: View, multiplier: Float = 2f) {
+            visitFollowLights(root, null) { setFollowLightIntensity(it, multiplier) }
+        }
+
         /** One pass after attach/layout or material changes, never an animation-frame poll. */
         fun bindFollowLightIntensity(root: View, delegate: Any? = null, multiplier: Float = 2f,
             afterMaterialApplied: (() -> Unit)? = null) {
@@ -178,7 +186,7 @@ internal object ColorOsNativeUi {
                 pending = ViewTreeObserver.OnPreDrawListener {
                     cancelPending()
                     prepare("adjust native follow light intensity") {
-                        boostFollowLights(root, delegate, multiplier)
+                        visitFollowLights(root, delegate) { setFollowLightIntensity(it, multiplier) }
                         afterMaterialApplied?.invoke()
                     }
                     true

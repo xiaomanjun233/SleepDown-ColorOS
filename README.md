@@ -181,6 +181,7 @@ git -C ../miuix-reference apply "$miuixPatchRoot/miuix-cascading-anchor-morph.pa
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-popup-material-content.patch"
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-native-menu-body.patch"
 git -C ../miuix-reference apply "$miuixPatchRoot/miuix-inline-bottom-sheet.patch"
+git -C ../miuix-reference apply "$miuixPatchRoot/miuix-sheet-surface-sibling.patch"
 $miuixSourceRoot = (Resolve-Path ../miuix-reference).Path
 .\gradlew.bat assembleGithubDebug "-Psleepdown.miuixSourcePath=$miuixSourceRoot"
 ```

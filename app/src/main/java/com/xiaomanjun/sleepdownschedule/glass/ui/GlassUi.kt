@@ -552,6 +552,7 @@ fun GlassSurface(
     nativeMaterial: Boolean = false,
     nativeDark: Boolean? = null,
     nativeBlurRadiusScale: Float = 1f,
+    nativeTintAlphaScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     if (nativeMaterial) {
@@ -563,6 +564,7 @@ fun GlassSurface(
             modifier = if (morphAllocation != null) modifier.glassMorphContent(morphAllocation) else modifier,
             shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
             blurRadiusScale = nativeBlurRadiusScale,
+            tintAlphaScale = nativeTintAlphaScale,
             onClick = onClick,
             shapeProvider = if (morphAllocation != null) {
                 { RoundedRectangle(with(nativeDensity) { morphAllocation.geometry().cornerRadiusPx.toDp() }) }

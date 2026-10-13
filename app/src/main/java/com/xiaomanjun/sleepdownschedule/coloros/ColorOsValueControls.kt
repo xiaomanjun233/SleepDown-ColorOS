@@ -36,7 +36,7 @@ internal fun ColorOsSlider(request: NativeSliderRequest): Boolean {
             NativeSliderBinding(native.first, native.second, { latest.value }, session)
         }
     } ?: return false
-    val accent = LocalColorOsButtonAccent.current ?: MaterialTheme.colorScheme.primary.toArgb()
+    val accent = MaterialTheme.colorScheme.primary.toArgb()
     key(binding.view) { AndroidView(factory = { binding.view }, modifier = request.modifier.fillMaxWidth().height(48.dp), update = {
         it.isEnabled = request.enabled
         binding.sync(request.value(), accent)
@@ -135,7 +135,7 @@ internal fun ColorOsSwitch(request: NativeSwitchRequest): Boolean {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val native = rememberNativeContext(dark) ?: return false
     val latest = rememberUpdatedState(request)
-    val accent = LocalColorOsButtonAccent.current ?: MaterialTheme.colorScheme.primary.toArgb()
+    val accent = MaterialTheme.colorScheme.primary.toArgb()
     val binding = remember(native) {
         ColorOsNativeUi.prepare("create native switch") {
             native.first.updateTheme(native.second, dark)

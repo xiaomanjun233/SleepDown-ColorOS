@@ -42,6 +42,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
@@ -109,6 +111,7 @@ import com.xiaomanjun.sleepdownschedule.glass.glassBackdropProducer
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassLayerBackdrop
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassSurfaceDescriptor
 import com.xiaomanjun.sleepdownschedule.glass.sleepDownGlassSurface
+import com.xiaomanjun.sleepdownschedule.core.ui.interaction.deviceScreenCornerRadiusPx
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -265,6 +268,12 @@ private fun QuickScheduleSettingsSheetSession(
     var detailLaunching by remember { mutableStateOf(false) }
     val sheetDiagnostics = remember { android.util.Log.isLoggable("SleepDownSheet", android.util.Log.DEBUG) }
     val sheetDraws = remember { intArrayOf(0) }
+    val density = LocalDensity.current
+    val panelGap = 12.dp
+    val panelBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding().coerceAtLeast(panelGap)
+    // A floating panel nests inside the physical screen corner, sharing its arc centre.
+    val panelRadius = (with(density) { deviceScreenCornerRadiusPx().toDp() } - panelGap).coerceAtLeast(16.dp)
+    val panelShape = RoundedRectangle(panelRadius)
 
     fun latestDraft(): QuickScheduleDraft? = retainedDraft
 
@@ -302,6 +311,7 @@ private fun QuickScheduleSettingsSheetSession(
         show = draft != null,
         title = "课表设置",
         renderInPlace = true,
+        cornerRadius = panelRadius,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",
@@ -325,7 +335,8 @@ private fun QuickScheduleSettingsSheetSession(
         onDismissFinished = onDismissFinished,
         allowDismiss = !saving,
         backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 590.dp).semantics { testTag = "quick_schedule_sheet" }
+        modifier = Modifier.padding(start = panelGap, end = panelGap, bottom = panelBottom)
+            .heightIn(max = 590.dp).semantics { testTag = "quick_schedule_sheet" }
             .then(if (sheetDiagnostics) Modifier.onGloballyPositioned { coords ->
                 android.util.Log.i("SleepDownSheet", "layout size=${coords.size} root=${coords.boundsInRoot()} window=${coords.positionInWindow()}")
             }.drawWithContent {
@@ -336,12 +347,15 @@ private fun QuickScheduleSettingsSheetSession(
                 }
                 drawContent()
             } else Modifier),
-        surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
+        surfaceContent = { surface ->
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetDialogMaterial(surface, panelShape, backdrop, config)
+        }
     ) {
         retainedDraft.let { value ->
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(bottom = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -544,6 +558,7 @@ private fun QuickScheduleSettingsSheetSession(
         show = showDatePicker && draft != null,
         title = "选择日期",
         renderInPlace = true,
+        cornerRadius = panelRadius,
         startAction = {
             QuickSheetLiquidAction(
                 label = "取消",
@@ -580,8 +595,10 @@ private fun QuickScheduleSettingsSheetSession(
         },
         onDismissRequest = { showDatePicker = false },
         backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 330.dp),
-        surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
+        modifier = Modifier.padding(start = panelGap, end = panelGap, bottom = panelBottom).heightIn(max = 330.dp),
+        surfaceContent = { surface ->
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetDialogMaterial(surface, panelShape, backdrop, config)
+        }
     ) {
         val maxDay = daysInMonth(dateYear, dateMonth)
         LaunchedEffect(maxDay) {
@@ -800,7 +817,10 @@ fun SchedulePickerOverlay(
                 .padding(top = if (landscape) contentTopInset else 0.dp)
                 .then(if (landscape) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
                     else Modifier.statusBarsPadding().navigationBarsPadding())
-                .graphicsLayer { alpha = chrome },
+                .graphicsLayer {
+                    alpha = chrome
+                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
+                },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -1081,7 +1101,7 @@ fun SchedulePickerOverlay(
                         enabled = pagerInputEnabled,
                         backdrop = managerBackdrop,
                         config = visualConfig,
-                        tint = Color(0xFF007AFF),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.align(Alignment.Center).offset(x = sideOffset).size(buttonSize)
                     ) { onCreate() }
                 }
@@ -1221,14 +1241,14 @@ private fun PickerHeaderButton(
             blurRadius = 10.dp,
             lensHeight = 26.dp,
             lensAmount = 34.dp,
-            tint = if (primary) Color(0xFF007AFF) else Color.Unspecified,
-            surfaceColor = if (primary) Color(0xFF007AFF).copy(alpha = 0.46f) else Color.Black.copy(alpha = 0.30f),
+            tint = if (primary) MaterialTheme.colorScheme.primary else Color.Unspecified,
+            surfaceColor = if (primary) MaterialTheme.colorScheme.primary.copy(alpha = 0.46f) else Color.Black.copy(alpha = 0.30f),
             contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
             Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
         }
     } else {
-        Text(label, color = Color.White, modifier = Modifier.width(86.dp).clip(Capsule()).background(if (primary) Color(0xFF007AFF) else Color.White.copy(alpha = 0.12f)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 11.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(label, color = Color.White, modifier = Modifier.width(86.dp).clip(Capsule()).background(if (primary) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 11.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 

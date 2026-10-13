@@ -72,6 +72,7 @@ internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: 
             }
             native.first.bindFollowLightIntensity(view, afterMaterialApplied = {
                 if (primary) native.first.applyCapsuleAccent(view, latest.value.primaryColor.toArgb())
+                else native.first.applyTransparentCapsule(view)
             })
             view
         }
@@ -87,7 +88,10 @@ internal fun ColorOsCapsuleButton(request: NativeCapsuleButtonRequest, content: 
     NativeCapsuleButtonLayout(request, button, motion, update = {
         val changed = it.isEnabled != request.enabled || appearance.accent != accent
         it.isEnabled = request.enabled
-        if (primary && changed) native.first.applyCapsuleAccent(it, checkNotNull(accent))
+        if (changed) {
+            if (primary) native.first.applyCapsuleAccent(it, checkNotNull(accent))
+            else native.first.applyTransparentCapsule(it)
+        }
         appearance.accent = accent
     }, content = content)
     DisposableEffect(button, motionBinding) {
@@ -137,6 +141,14 @@ internal fun NativeCapsuleButtonLayout(
 }
 
 private class CapsuleAppearance { var accent: Int? = null }
+
+/** Ordinary capsules share the navigation button's native transparent color layers. */
+internal fun ColorOsNativeUi.Source.applyTransparentCapsule(view: TextView) {
+    if (!view.isAttachedToWindow || !blurEnabled()) return
+    val type = load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectType")
+    load("com.coui.appcompat.COUIMaterialEffect").getMethod("setViewBlurEffect", View::class.java, type)
+        .invoke(null, view, type.getField("TYPE_FRAMEWORK_TOP_BAR_BLUR").get(null))
+}
 
 internal fun ColorOsNativeUi.Source.configureCapsuleButton(view: TextView, primary: Boolean) {
     val type = load("com.coui.appcompat.button.COUIButton")

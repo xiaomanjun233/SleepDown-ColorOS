@@ -13,6 +13,7 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSwitchRe
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSegmentRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuRowRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativePopupRenderer
 
 /** SleepDown's ColorOS framework entry. Each capability returns false when unavailable. */
 @Composable
@@ -29,6 +30,7 @@ internal fun ProvideSleepDownColorOs(content: @Composable () -> Unit) {
         LocalNativeSegmentRenderer provides { ColorOsSegments(it) },
         LocalNativeMenuRowRenderer provides { ColorOsMenuRow(it) },
         LocalNativeMenuSurfaceRenderer provides { request, body -> ColorOsMenuSurface(request, body) },
+        LocalNativePopupRenderer provides { ColorOsPopup(it) },
         content = content
     )
 }

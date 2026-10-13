@@ -375,7 +375,7 @@ fun WidgetCustomizationScreen(
                         },
                         modifier = Modifier.weight(1f),
                         textColorOverride = Color.White,
-                        surfaceColorOverride = Color(0xFF0A84FF).copy(alpha = 0.72f)
+                        surfaceColorOverride = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
                     )
                     LiquidMenuButton(
                         backdrop = backdrop,
@@ -994,7 +994,7 @@ private fun WidgetWallpaperEditor(
             WallpaperHeaderButton(
                 "完成",
                 backdrop,
-                Color(0xFF0A84FF).copy(alpha = 0.84f),
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.84f),
                 !closing && !sourceLoading && (uri == null || bitmap != null)
             ) {
                 val source = uri
@@ -1050,7 +1050,7 @@ private fun WidgetWallpaperRoundAction(
     backdrop: Backdrop?,
     onClick: () -> Unit
 ) {
-    val surface = if (destructive) Color(0xFFFF453A).copy(alpha = 0.82f) else Color(0xFF0A84FF).copy(alpha = 0.86f)
+    val surface = if (destructive) Color(0xFFFF453A).copy(alpha = 0.82f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.86f)
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (backdrop != null) {
             LiquidButton(

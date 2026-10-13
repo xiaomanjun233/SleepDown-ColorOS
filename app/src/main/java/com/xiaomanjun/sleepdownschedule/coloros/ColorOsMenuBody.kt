@@ -36,8 +36,29 @@ internal fun ColorOsNativeUi.Source.createMenuItem(context: Context, host: Conte
         }
 }
 
-internal fun ColorOsNativeUi.Source.applyNeutralMenuMaterial(context: Context, wrapper: View) {
-    val params = weatherButtonBlurParams(context)
+/** RoundFrameLayout's standard menu colors/radius, with the same optional home-neutral tint. */
+internal fun ColorOsNativeUi.Source.menuBlurParams(context: Context, neutral: Boolean): Any {
+    val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
+    val preset = weatherButtonBlurParams(context)
+    val dark = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val theme = if (dark) "dark" else "light"
+    fun layer(method: String, resourceName: String): String {
+        val color = if (neutral) base.getMethod(method, Context::class.java).invoke(preset, context) as Int
+            else context.getColor(resource(resourceName, "color"))
+        return "#" + Integer.toHexString(color).padStart(8, '0')
+    }
+    return load("com.coui.appcompat.COUIMaterialBlurEffect\$BlurEffectParams")
+        .getConstructor(Float::class.javaPrimitiveType, String::class.java, android.graphics.BlendMode::class.java,
+            String::class.java, android.graphics.BlendMode::class.java)
+        .newInstance(160f, layer("getColorLayer1", "coui_popup_list_blend_blur_$theme"),
+            base.getMethod("getBlendModeLayer1").invoke(preset),
+            layer("getColorLayer2", "coui_popup_list_mix_blur_$theme"),
+            base.getMethod("getBlendModeLayer2").invoke(preset))
+}
+
+internal fun ColorOsNativeUi.Source.applyMenuMaterial(context: Context, wrapper: View, neutral: Boolean) {
+    val params = menuBlurParams(context, neutral)
     val base = load("com.coui.appcompat.COUIMaterialBlurEffect\$BaseBlurEffectParams")
     val ui = load("com.coui.appcompat.uiutil.UIUtil")
     fun layer(method: String): Any = ui.getMethod("colorToFloats", Int::class.javaPrimitiveType)
@@ -46,6 +67,8 @@ internal fun ColorOsNativeUi.Source.applyNeutralMenuMaterial(context: Context, w
         .apply { isAccessible = true }.get(wrapper)
     val type = builder.javaClass
     type.getMethod("setMode", Int::class.javaPrimitiveType).invoke(builder, 4)
+    type.getMethod("setBlurRadius", Int::class.javaPrimitiveType).invoke(builder,
+        (base.getMethod("getBlurRadius", Context::class.java).invoke(params, context) as Float).toInt())
     for (theme in listOf("Light", "Dark")) {
         type.getMethod("setMixColor$theme", FloatArray::class.java).invoke(builder, layer("getColorLayer2"))
         type.getMethod("setBlendColor$theme", FloatArray::class.java).invoke(builder, layer("getColorLayer1"))
@@ -87,23 +110,40 @@ internal fun ColorOsMenuRow(request: NativeMenuRowRequest): Boolean {
             row.minimumHeight = (row.minimumHeight - trimTop - trimBottom).coerceAtLeast(0)
             container.addView(row, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT))
-            source.bindFollowLightIntensity(row, multiplier = 3f)
+            source.bindFollowLightIntensity(row, multiplier = 1.7f)
             val indicator = if (request.item.children.isNotEmpty()) findMenuIndicator(row) else null
             Triple(container, row, indicator)
         }
     } ?: return false
     val latest = rememberUpdatedState(request)
+    val feedback = remember(binding) { NativeMenuFeedback(binding.second) }
+    DisposableEffect(feedback) { onDispose { feedback.setPressed(false) } }
     // Popup hosts ask for intrinsic sizes. AndroidView alone cannot answer those queries.
     val policy = remember(binding) { NativeMenuMeasurePolicy(binding.first) }
     Layout(content = {
         key(binding.first) { AndroidView(factory = { binding.first }, update = {
-            binding.second.isPressed = request.pressed && request.item.enabled
+            feedback.setPressed(request.pressed && request.item.enabled)
         }, modifier = Modifier.drawWithContent {
             binding.third?.rotation = latest.value.indicatorRotation()
             drawContent()
         }) }
     }, modifier = latest.value.modifier, measurePolicy = policy)
     return true
+}
+
+/** COUITouchListView changes row selection through StatefulDrawable, not View.pressed. */
+private class NativeMenuFeedback(private val row: View) {
+    private val drawable = requireNotNull(row.background)
+    private val enter = drawable.javaClass.getMethod("setTouchSelectEntered")
+    private val exit = drawable.javaClass.getMethod("setTouchSelectExited")
+    private var pressed = false
+
+    fun setPressed(value: Boolean) {
+        if (pressed == value) return
+        pressed = value
+        row.isPressed = value
+        (if (value) enter else exit).invoke(drawable)
+    }
 }
 
 private fun findMenuIndicator(view: View): CheckBox? {
