@@ -59,7 +59,21 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 - 课程共享模糊采样通过可跟踪的 `compositionLocalOf` 提供。个性化滑杆替换采样器时只更新课程消费者，不再让 static provider 刷新整页和原生 Dock。
 - 凝光模式通过稳定的 State 持有开关、着色和模糊值，只有读取对应值的消费者订阅变化，框架 provider 不随拖动重新创建模式。表面着色变化仅 invalidate；只有模糊、描边、明暗或可见性变化才重新安装原生效果。
 - 个性化实时整页模糊与冻结路径一样，先录制完整页面，再模糊录制层；不把变化的 RenderEffect 直接挂到原生 Dock 的祖先层。Dock 仍在页面快照及整页模糊范围内。桌面重组测试不等同于实机 GPU 材质已验收。
-- 个性化滑条的预览进度只释放背景模糊，不再插值整个首页及采样层的缩放比例，避免每次按下/松开带动 Dock 放大缩小。半屏课表设置在根页面后绘制区域拥有每次打开独立的本地弹层宿主，关闭后释放，不复用全局弹层注册状态。见 [宿主与预览联动修订](../reports/2026-10-13-coloros-picker-host.md)。
+- 个性化预览保留原来的缩放与模糊释放。公共 Slider/开关在 ColorOS 可用时直接使用原生控件，不再创建 Kyant 控件的轨道/滑块采样器或形变节点；未额外叠加滑块专用 Backdrop 补丁。半屏课表设置仍在根页面后绘制区域拥有每次打开独立的本地弹层宿主。见 [输入与预览修订](../reports/2026-10-13-coloros-picker-input.md)。
+
+## 数值与选项控件
+
+`NativeValueControls` 是业务协议，`ColorOsValueControls` 负责加载系统 COUI：数值使用 `COUISeekBar`，开关使用 `COUISwitch`，导入类型等 `LiquidOptionTabs` 使用 `COUISegmentButtonLayout`。旧入口保留给调用方，优先交给原生 renderer；能力不可用时才进入原实现。原生控件负责滑块、文字、拖动、弹簧、触觉与无障碍，不再将 Compose 文本独立贴在原生分段滑块上。
+
+Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预览，值变化只预览，正常结束先提交再结束预览；取消恢复开始值而不提交；键盘/无障碍变化无需制造触摸预览。禁用状态传入原生 View。课程模糊使用上文百分比映射。
+
+## 菜单与教务面板
+
+加号/普通顶栏菜单的静止和运动表面都接入原生材质，沿用原有位置、尺寸、源按钮交接和行输入。菜单面板保持中性配色，FAB 本体仍由自己的着色控制。
+
+公共 Miuix 普通菜单与级联主次菜单通过 `miuix-popup-material-content.patch` 的材质子节点插槽挂载原生 View。它按动画的实际面板尺寸和圆角更新，原菜单继续负责进退场、父级冻结和滑动选择；不同时绘制旧的 Kyant 背景和白色描边。未使用普通按钮作为材质底板。
+
+教务灵动岛是可展开面板，使用 `TopAssistantSurface` 的原生材质和自身动态圆角；撤掉误套在外层的 `COUIButton` 胶囊，避免出现半高圆角白边。原有展开、收回与上划关闭逻辑保留。
 
 ## 课程 shortcut
 
@@ -79,9 +93,9 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 ## 课程凝光与渐变模糊
 
-课程凝光保留课程渐变色与默认 50% 着色。模糊滑杆范围为 0–100，默认 50 对应系统内容通透预设半径，100 对应两倍半径，0 关闭 blur effect，仍保留渐变及原生描边。内部仍保存 0–2 的半径比例，旧值仅换算显示、不改变效果。偏好仅保存在派生版的独立 SharedPreferences，不改变 Room 和备份格式；拖动预览不写盘，提交后保存，预览取消时恢复已保存值。
+课程凝光保留课程渐变色与默认 50% 着色。模糊滑杆显示 0%–100%：0% 对应系统默认半径的 20%，50% 对应系统默认值，100% 对应两倍半径；前后两段线性映射。内部仍保存半径比例，读取旧值时将低于 0.2 的值限制到新的最低强度，其余旧值保留实际效果并换算显示。偏好仅保存在派生版的独立 SharedPreferences，不改变 Room 和备份格式；拖动预览不写盘，提交后保存，预览取消时恢复已保存值。
 
-课程与表头描边基于 Dock 的 RenderNode 预设 `TYPE_FRAMEWORK_CAPSULE_3`，宽度调为该预设的 1.3 倍，让光感略多覆盖圆角；亮度、方向和阴影衰减仍取系统值。跟手光使用 `TYPE_OPAQUE_MEDIUM_2` 与当前 Dock 的 2× 强度，颜色保持系统默认。课程形状仍由课程自身 outline 提供，不套用 Dock 的胶囊圆角，也不额外设置 OplusMaterialCornerParams。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画；不显示说明文字、旧轮廓光开关或折射滑杆。新增行计入后续行号和动画总时长。
+课程与表头描边改用 COUIButton 通透内容默认预设 `TYPE_CONTENT_CAPSULE_3`，撤掉 Dock 预设的 1.3 倍宽度覆盖。按 COUIButton 的顺序，先根据实际 Shape、密度、尺寸设置 `OplusMaterialCornerParams`，再安装材质描边；只做 ViewOutline 裁剪无法让原生描边沿圆角走。Kyant 连续圆角从 `RoundedRectangularShape.corners` 读取，课程卡保留实际半径，胶囊才使用半高圆角；未知或不均匀路径不强行改成胶囊。跟手光保持系统默认色与 2× 强度。个性化面板显示开关、着色及模糊滑杆，全部加入行进入动画，不显示说明文字、旧轮廓光开关或折射滑杆。
 
 所有公共 `ProgressiveBackdropBlur` / `progressiveBackdropBlur` 入口通过 `LocalNativeProgressiveBlur` 使用系统 `OplusRenderEffect.createGradientBlurEffect`。模糊效果接入现有 glass 背景采样链，沿用页面半径、方向、透明度包络、快照及坐标归属，速度取系统 `AppBarBlurHelper` 默认参数。顶部、底部和侧边入口共用这一路线，侧边字母栏保留顶部/底部消隐。
 
@@ -91,4 +105,4 @@ Compose 内容直接绘制在 COUIButton 上方，保持文字、图标和加载
 
 ## 验证入口
 
-UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。
+UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。`NativeDialogTouchGateTest` 检查窗口坐标与触摸序列，`NativeValueControlsTest` 检查预览事务及百分比映射，`ColorOsMaterialCornersTest` 检查真实圆角。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[输入、控件与材质修订](../reports/2026-10-13-coloros-picker-input.md)，前轮记录见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。
